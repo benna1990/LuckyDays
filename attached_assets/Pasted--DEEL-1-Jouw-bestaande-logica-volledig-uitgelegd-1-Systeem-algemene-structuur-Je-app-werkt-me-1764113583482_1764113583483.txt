@@ -1,0 +1,200 @@
+✅ DEEL 1 — Jouw bestaande logica volledig uitgelegd
+
+1. Systeem: algemene structuur
+
+Je app werkt met:
+	•	PHP backend
+	•	MySQL database
+	•	Bootstrap modals + standaard JS interactiviteit
+	•	Een scraper die LuckyDay-nummers automatisch ophaalt
+	•	Een dashboard met datumselectie → haalt uitslag op
+	•	Een “bonnen”-inklapmodule → koppelt spelers + spellen + inzet + nummers
+	•	Interne formules voor multiplier/winstberekening per speltype
+
+Alles is modulair opgebouwd: een bestand per functie.
+
+⸻
+
+✅ 2. De bon-invoer logica (bon_invoer.php)
+
+Dit bestand is een mix van:
+
+✔️ Slimme nummerinvoer
+
+Uit jouw code blijkt dat je:
+	•	werken met een reeks nummer-knoppen (1 t/m 80)
+	•	een highlight toont voor geselecteerde nummers
+	•	automatisch naar het volgende veld gaat wanneer je iets invult
+	•	begrenzing: afhankelijk van het speltype max aantal nummers
+	•	check: geen dubbel gekozen nummers
+
+✔️ Toetsenbord-handigheidjes
+
+Je hebt shortcuts:
+	•	Enter → bon opslaan
+	•	Backspace → laatste nummer verwijderen
+	•	Automatisch springt de focus naar volgende veld
+	•	Bij 7 nummers of (“0…”-achtig input) wordt bon afgerond
+
+Dit is dus premium UX die we zeker moeten bewaren.
+
+✔️ Validaties
+	•	Geen leeg bon
+	•	Max aantal nummers volgens speltype
+	•	Speler moet gekozen zijn
+	•	Spel moet gekozen zijn
+
+✔️ Data-opbouw
+
+Een bon bestaat uit:
+	•	speler_id
+	•	spel_id
+	•	inzet
+	•	reeks nummers
+	•	datum
+	•	totale winst? (berekend later)
+	•	metadata
+
+⸻
+
+✅ 3. De berekening: jouw ‘formule van de dag’
+
+Uit balans.php en spellen_lijst.php kan ik reconstrueren:
+
+✔️ Speltype bepaalt:
+	•	aantal mogelijke getallen (bijv. 3/4/5/7 uit 80)
+	•	hoeveel treffers nodig zijn
+	•	multiplier per match
+	•	inzet × multiplier = winst
+
+✔️ Per bon wordt:
+	1.	Aantal matches bepaald
+	2.	Speltype opgezocht in spellen_lijst
+	3.	De juiste multiplier uit JSON gebruikt
+	4.	Winst berekend server-side
+	5.	Totaal per speler berekend
+	6.	Totaal per dag berekend
+
+Jouw structuur gebruikt echt een mooie dynamische JSON multiplier-tabel.
+
+⸻
+
+✅ 4. Spelerssysteem (spelers.php)
+
+Er zitten veel handige features in:
+
+✔️ Spelers toevoegen is simpel:
+	•	naam
+	•	alias
+	•	kleur/icoon (optioneel?)
+	•	wordt opgeslagen in MySQL
+
+✔️ Spelers worden overal hergebruikt:
+	•	bon-invoer
+	•	balans
+	•	dashboard
+	•	overzicht per dag
+
+✔️ Spelers krijgen een “saldo” aan de achterkant:
+	•	totaal inzet
+	•	totaal winst
+	•	netto resultaat
+
+⸻
+
+✅ 5. De spellenlijst (spellen_lijst.php)
+
+Dit bestand is goud waard voor AI-reconstructie.
+
+✔️ Dit bevat:
+	•	id
+	•	spelnaam (bijv: 3 uit 80)
+	•	JSON-multiplier structuur
+	•	max aantal toegestane nummers
+	•	minimum inzet / stappen
+	•	Of een bon al dan niet combinaties heeft
+
+✔️ Je hebt een dynamische beheerpagina:
+	•	spel toevoegen
+	•	multiplier-matrix aanpassen
+	•	aantal getallen instellen
+	•	max-velden
+
+✔️ Hieruit blijkt dat jouw systeem héél flexibel is:
+
+Je kunt elk kansspel dat lijkt op LuckyDay invoeren, ongeacht de regels.
+
+⸻
+
+✅ 6. Dashboard (dashboard.php)
+
+Dit is de centrale plek.
+
+✔️ Functioneel:
+	•	datumselectie
+	•	datum wordt in session opgeslagen
+	•	via AJAX de uitslag ophalen
+	•	20 nummers tonen
+	•	via sessie de juiste dag ophalen
+	•	bonnen + spelers + balans per dag tonen
+
+✔️ UX-features die we in de nieuwe versie moeten behouden:
+	•	automatisch syncen van datum → URL
+	•	herlaadt uitslag zonder reload
+	•	mooie visuele nummerbollen
+	•	overzichtelijk dagrapport
+
+⸻
+
+✅ 7. De scraper + resultaten (fetch_winning_numbers.php)
+
+Dit stuk:
+
+✔️ Haalt LuckyDay uitslagen op
+
+✔️ Scraped van de officiële site
+
+✔️ Slaat op in DB
+
+✔️ Voorkomt dubbele entries
+
+✔️ Retourneert JSON voor dashboard
+
+⸻
+
+🟩 CONCLUSIE TOT NU: JOUW APP HEEFT DEZE SLIMHEIDJES
+
+Hier is de lijst die we 1-op-1 gaan meenemen voor je AI-tool:
+
+✔️ Invoer-handigheidjes
+	•	sneller naar het volgende veld springen
+	•	smart backspace
+	•	smart enter → bon opslaan
+	•	maximaal aantal getallen afhankelijk van speltype
+	•	visuele feedback per nummer
+	•	duplicate-preventie
+
+✔️ Administratiehandigheidjes
+	•	spelerselectie met kleur/identiteit
+	•	makkelijk bonnen toevoegen
+	•	mooie databasekoppelingen
+	•	spelnummers zijn dynamisch
+	•	JSON multiplier-structuur → super flexibele berekening
+
+✔️ Berekeningen
+	•	geïntegreerde formule: matches → multiplier → winst
+	•	totaal per speler
+	•	totaal per dag
+	•	verschil + saldo
+	•	koppeling met dashboarddatum
+
+✔️ UX / workflow die typisch voor jouw app is
+	•	dashboard = centrale plek
+	•	datumselectie stuurt alles aan
+	•	uitslag ophalen via AJAX
+	•	visuele 20 nummer-bolletjes
+	•	bonnen per dag tonen
+	•	super snelle bon-invoer (keyboard-first design)
+
+✔️ Dataflow
+	•	datum → uitslag → spelers → bonnen → formules → winst

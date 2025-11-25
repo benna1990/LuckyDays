@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'config.php';
+require_once 'functions.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: /index.php');
@@ -9,28 +10,96 @@ if (!isset($_SESSION['username'])) {
 
 $isAdmin = isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
 
-$stats = pg_query($conn, 
+$game_types_result = pg_query($conn, "SELECT * FROM game_types WHERE active = true ORDER BY numbers_count");
+$game_types = $game_types_result ? pg_fetch_all($game_types_result) : [];
+
+function getBonWinnings($bon, $winning_numbers, $game_types) {
+    if (empty($winning_numbers) || in_array('-', $winning_numbers)) {
+        return null;
+    }
+    
+    $bon_numbers = array_map('trim', explode(',', $bon['numbers']));
+    $matches = count(array_intersect($bon_numbers, $winning_numbers));
+    
+    foreach ($game_types as $gt) {
+        if ($gt['name'] === $bon['game_type']) {
+            $multipliers = json_decode($gt['multipliers'], true);
+            return floatval($bon['bet']) * ($multipliers[$matches] ?? 0);
+        }
+    }
+    return 0;
+}
+
+$overall_stats = pg_query($conn, 
     "SELECT 
-        SUM(bet) as total_bet,
-        COUNT(*) as total_plays,
-        COUNT(DISTINCT name) as unique_players,
+        COALESCE(SUM(bet), 0) as total_bet,
+        COUNT(*) as total_bons,
+        COUNT(DISTINCT player_id) as unique_players,
         COUNT(DISTINCT date) as days_played
-     FROM players"
+     FROM bons"
 );
-$overall_stats = $stats ? pg_fetch_assoc($stats) : [];
+$stats = $overall_stats ? pg_fetch_assoc($overall_stats) : [];
 
 $player_stats = pg_query($conn, 
     "SELECT 
-        name,
-        SUM(bet) as total_bet,
-        COUNT(*) as plays,
-        MIN(date) as first_play,
-        MAX(date) as last_play
-     FROM players
-     GROUP BY name
+        p.id, p.name, p.alias, p.color,
+        COALESCE(SUM(b.bet), 0) as total_bet,
+        COUNT(b.id) as total_bons,
+        MIN(b.date) as first_play,
+        MAX(b.date) as last_play
+     FROM players p
+     LEFT JOIN bons b ON b.player_id = p.id
+     GROUP BY p.id, p.name, p.alias, p.color
+     HAVING COUNT(b.id) > 0
      ORDER BY total_bet DESC"
 );
 $players = $player_stats ? pg_fetch_all($player_stats) : [];
+
+$all_bons = pg_query($conn, 
+    "SELECT b.*, p.name as player_name
+     FROM bons b
+     JOIN players p ON b.player_id = p.id
+     ORDER BY b.date DESC, b.player_id"
+);
+$bons_list = $all_bons ? pg_fetch_all($all_bons) : [];
+
+$winning_numbers_cache = [];
+
+if ($bons_list) {
+    $unique_dates = array_unique(array_column($bons_list, 'date'));
+    if (!empty($unique_dates)) {
+        $wn_result = pg_query_params($conn, 
+            "SELECT date, numbers FROM winning_numbers WHERE date = ANY($1)",
+            ['{' . implode(',', $unique_dates) . '}']
+        );
+        if ($wn_result) {
+            while ($row = pg_fetch_assoc($wn_result)) {
+                $winning_numbers_cache[$row['date']] = explode(',', $row['numbers']);
+            }
+        }
+    }
+}
+
+$total_winnings = 0;
+$player_winnings = [];
+
+foreach ($bons_list as $bon) {
+    $date = $bon['date'];
+    $winning_nums = $winning_numbers_cache[$date] ?? [];
+    
+    $winnings = getBonWinnings($bon, $winning_nums, $game_types);
+    if ($winnings !== null) {
+        $total_winnings += $winnings;
+        
+        if (!isset($player_winnings[$bon['player_id']])) {
+            $player_winnings[$bon['player_id']] = 0;
+        }
+        $player_winnings[$bon['player_id']] += $winnings;
+    }
+}
+
+$total_bet = floatval($stats['total_bet'] ?? 0);
+$total_profit = $total_winnings - $total_bet;
 ?>
 <!DOCTYPE html>
 <html lang="nl">
@@ -103,9 +172,6 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
             cursor: pointer;
             transition: all 0.2s;
             text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
         }
         .btn-secondary { background: #F3F4F6; color: #374151; }
         .btn-secondary:hover { background: #E5E7EB; }
@@ -120,10 +186,7 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
             font-weight: 700;
             margin-bottom: 0.5rem;
         }
-        .page-subtitle {
-            color: #6B7280;
-            font-size: 1rem;
-        }
+        .page-subtitle { color: #6B7280; font-size: 1rem; }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -139,6 +202,11 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
             padding: 1.5rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
+        .stat-card.highlight {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: white;
+        }
+        .stat-card.highlight .stat-label { color: rgba(255,255,255,0.8); }
         .stat-label {
             color: #6B7280;
             font-size: 0.875rem;
@@ -148,6 +216,8 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
             font-size: 1.75rem;
             font-weight: 700;
         }
+        .stat-positive { color: #10B981; }
+        .stat-negative { color: #EF4444; }
         .card {
             background: #FFFFFF;
             border-radius: 16px;
@@ -161,10 +231,7 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
             align-items: center;
             margin-bottom: 1.5rem;
         }
-        .card-title {
-            font-size: 1.125rem;
-            font-weight: 600;
-        }
+        .card-title { font-size: 1.125rem; font-weight: 600; }
         .players-table {
             width: 100%;
             border-collapse: collapse;
@@ -183,10 +250,36 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
             border-bottom: 1px solid #F3F4F6;
         }
         .players-table tr:hover { background: #F9FAFB; }
+        .player-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        .player-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
         .empty-state {
             text-align: center;
             padding: 3rem;
             color: #6B7280;
+        }
+        .progress-bar {
+            height: 8px;
+            background: #E5E7EB;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #10B981;
+            border-radius: 4px;
         }
     </style>
 </head>
@@ -199,6 +292,7 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
                 <a href="/spelers.php">Spelers</a>
                 <a href="/balans.php" class="active">Balans</a>
                 <?php if ($isAdmin): ?>
+                    <a href="/spellen.php">Spellen</a>
                     <a href="/php/admin_beheer.php">Beheer</a>
                 <?php endif; ?>
             </div>
@@ -212,31 +306,33 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
     <div class="container">
         <div class="page-header">
             <h1 class="page-title">Balans Overzicht</h1>
-            <p class="page-subtitle">Totaaloverzicht van alle inzetten en spelers</p>
+            <p class="page-subtitle">Totaaloverzicht van alle inzetten en winsten</p>
         </div>
 
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-label">Totale Inzet</div>
-                <div class="stat-value">€<?php echo number_format($overall_stats['total_bet'] ?? 0, 2, ',', '.'); ?></div>
+                <div class="stat-value">€<?php echo number_format($total_bet, 2, ',', '.'); ?></div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Totaal Spellen</div>
-                <div class="stat-value"><?php echo $overall_stats['total_plays'] ?? 0; ?></div>
+                <div class="stat-label">Totale Winst</div>
+                <div class="stat-value">€<?php echo number_format($total_winnings, 2, ',', '.'); ?></div>
+            </div>
+            <div class="stat-card highlight">
+                <div class="stat-label">Netto Resultaat</div>
+                <div class="stat-value">
+                    <?php echo $total_profit >= 0 ? '+' : ''; ?>€<?php echo number_format($total_profit, 2, ',', '.'); ?>
+                </div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Unieke Spelers</div>
-                <div class="stat-value"><?php echo $overall_stats['unique_players'] ?? 0; ?></div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Dagen Gespeeld</div>
-                <div class="stat-value"><?php echo $overall_stats['days_played'] ?? 0; ?></div>
+                <div class="stat-label">Totaal Bonnen</div>
+                <div class="stat-value"><?php echo $stats['total_bons'] ?? 0; ?></div>
             </div>
         </div>
 
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Spelers Statistieken</h2>
+                <h2 class="card-title">Spelers Saldo</h2>
             </div>
             
             <?php if ($players && count($players) > 0): ?>
@@ -245,20 +341,40 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
                     <thead>
                         <tr>
                             <th>Speler</th>
-                            <th>Totale Inzet</th>
-                            <th>Aantal Spellen</th>
-                            <th>Eerste Spel</th>
-                            <th>Laatste Spel</th>
+                            <th>Bonnen</th>
+                            <th>Inzet</th>
+                            <th>Winst</th>
+                            <th>Resultaat</th>
+                            <th>ROI</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($players as $player): ?>
+                            <?php 
+                            $bet = floatval($player['total_bet']);
+                            $win = $player_winnings[$player['id']] ?? 0;
+                            $profit = $win - $bet;
+                            $roi = $bet > 0 ? (($profit / $bet) * 100) : 0;
+                            ?>
                             <tr>
-                                <td><strong><?php echo htmlspecialchars($player['name']); ?></strong></td>
-                                <td>€<?php echo number_format($player['total_bet'], 2, ',', '.'); ?></td>
-                                <td><?php echo $player['plays']; ?></td>
-                                <td><?php echo date('d M Y', strtotime($player['first_play'])); ?></td>
-                                <td><?php echo date('d M Y', strtotime($player['last_play'])); ?></td>
+                                <td>
+                                    <span class="player-tag" style="background: <?php echo $player['color']; ?>20;">
+                                        <span class="player-dot" style="background: <?php echo $player['color']; ?>;"></span>
+                                        <?php echo htmlspecialchars($player['name']); ?>
+                                        <?php if ($player['alias']): ?>
+                                            <small>(<?php echo htmlspecialchars($player['alias']); ?>)</small>
+                                        <?php endif; ?>
+                                    </span>
+                                </td>
+                                <td><?php echo $player['total_bons']; ?></td>
+                                <td>€<?php echo number_format($bet, 2, ',', '.'); ?></td>
+                                <td>€<?php echo number_format($win, 2, ',', '.'); ?></td>
+                                <td class="<?php echo $profit >= 0 ? 'stat-positive' : 'stat-negative'; ?>">
+                                    <?php echo $profit >= 0 ? '+' : ''; ?>€<?php echo number_format($profit, 2, ',', '.'); ?>
+                                </td>
+                                <td class="<?php echo $roi >= 0 ? 'stat-positive' : 'stat-negative'; ?>">
+                                    <?php echo $roi >= 0 ? '+' : ''; ?><?php echo number_format($roi, 1, ',', '.'); ?>%
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -266,8 +382,9 @@ $players = $player_stats ? pg_fetch_all($player_stats) : [];
             </div>
             <?php else: ?>
             <div class="empty-state">
+                <p style="font-size: 3rem; margin-bottom: 1rem;">📊</p>
                 <p>Nog geen data beschikbaar</p>
-                <a href="/dashboard.php" class="btn btn-secondary" style="margin-top: 1rem;">Ga naar Dashboard</a>
+                <a href="/dashboard.php" class="btn btn-secondary" style="margin-top: 1rem; display: inline-block;">Ga naar Dashboard</a>
             </div>
             <?php endif; ?>
         </div>
