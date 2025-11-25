@@ -3,912 +3,376 @@ session_start();
 require_once 'config.php';
 require_once 'functions.php';
 
-if (!isset($_SESSION['username'])) {
-    header('Location: /index.php');
-    exit();
+if (!isset($_SESSION['admin_id']) && !isset($_SESSION['username'])) {
+    header('Location: index.php');
+    exit;
 }
 
-$isAdmin = isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
+$username = $_SESSION['admin_username'] ?? $_SESSION['username'] ?? 'Gebruiker';
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 
-if (!isset($_GET['selected_date']) && !isset($_SESSION['selected_date'])) {
-    $_SESSION['selected_date'] = date('Y-m-d');
-}
-
-$selected_date = $_GET['selected_date'] ?? $_SESSION['selected_date'];
-$_SESSION['selected_date'] = $selected_date;
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['add_bon'])) {
-        $player_id = intval($_POST['player_id']);
-        $game_type = $_POST['game_type'];
-        $numbers = trim($_POST['bon_numbers']);
-        $bet = floatval($_POST['bon_bet']);
-        
-        if ($player_id > 0 && !empty($numbers) && $bet > 0) {
-            pg_query_params($conn, 
-                "INSERT INTO bons (player_id, game_type, numbers, bet, date) VALUES ($1, $2, $3, $4, $5)",
-                [$player_id, $game_type, $numbers, $bet, $selected_date]
-            );
-        }
-        header("Location: dashboard.php?selected_date=" . $selected_date);
-        exit();
-    }
-    
-    if (isset($_POST['delete_bon'])) {
-        $bon_id = intval($_POST['bon_id']);
-        pg_query_params($conn, "DELETE FROM bons WHERE id = $1", [$bon_id]);
-        header("Location: dashboard.php?selected_date=" . $selected_date);
-        exit();
-    }
-    
-    if (isset($_POST['add_player'])) {
-        $name = trim($_POST['player_name']);
-        $alias = trim($_POST['player_alias'] ?? '');
-        $color = $_POST['player_color'] ?? '#10B981';
-        
-        if (!empty($name)) {
-            pg_query_params($conn, 
-                "INSERT INTO players (name, alias, color, date) VALUES ($1, $2, $3, $4)",
-                [$name, $alias, $color, $selected_date]
-            );
-        }
-        header("Location: dashboard.php?selected_date=" . $selected_date);
-        exit();
-    }
-    
-    if (isset($_POST['set_winning_numbers'])) {
-        $winning_numbers = explode(PHP_EOL, trim($_POST['winning_numbers']));
-        $winning_numbers = array_map('trim', $winning_numbers);
-        $winning_numbers = array_filter($winning_numbers);
-        
-        if (count($winning_numbers) === 20) {
-            saveWinningNumbersToDatabase($selected_date, $winning_numbers, $conn);
-        }
-        header("Location: dashboard.php?selected_date=" . $selected_date);
-        exit();
-    }
-}
+$selected_date = isset($_GET['date']) ? $_GET['date'] : (isset($_GET['selected_date']) ? $_GET['selected_date'] : date('Y-m-d'));
+$date_range = generateDateRange($selected_date);
 
 $result = getOrScrapeWinningNumbers($selected_date, $conn);
 $winning_numbers = $result['numbers'];
 $data_source = $result['source'];
-$has_valid_numbers = $data_source !== 'none' && !in_array('-', $winning_numbers);
+$scrape_error = $result['error'] ?? null;
 
-$all_players_result = pg_query($conn, "SELECT DISTINCT ON (name) id, name, alias, color FROM players ORDER BY name, id DESC");
-$all_players = $all_players_result ? pg_fetch_all($all_players_result) : [];
+$players = getAllPlayers($conn);
+$rows = getRowsByDate($conn, $selected_date);
+$day_stats = getDayStats($conn, $selected_date);
 
-$game_types_result = pg_query($conn, "SELECT * FROM game_types WHERE active = true ORDER BY numbers_count");
-$game_types = $game_types_result ? pg_fetch_all($game_types_result) : [];
-
-$bons_result = pg_query_params($conn, 
-    "SELECT b.*, p.name as player_name, p.alias, p.color 
-     FROM bons b 
-     JOIN players p ON b.player_id = p.id 
-     WHERE b.date = $1 
-     ORDER BY b.created_at DESC", 
-    [$selected_date]
-);
-$bons = $bons_result ? pg_fetch_all($bons_result) : [];
-
-function calculateBonResults($bon, $winning_numbers, $game_types, $has_valid_numbers) {
-    if (!$has_valid_numbers) {
-        return ['match_count' => null, 'multiplier' => null, 'winnings' => null, 'matches' => []];
-    }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
     
-    $bon_numbers = array_map('trim', explode(',', $bon['numbers']));
-    $matches = array_intersect($bon_numbers, $winning_numbers);
-    $match_count = count($matches);
-    
-    $multiplier = 0;
-    foreach ($game_types as $gt) {
-        if ($gt['name'] === $bon['game_type']) {
-            $multipliers = json_decode($gt['multipliers'], true);
-            $multiplier = $multipliers[$match_count] ?? 0;
-            break;
+    if (isset($_POST['action'])) {
+        switch ($_POST['action']) {
+            case 'add_row':
+                $playerId = intval($_POST['player_id']);
+                $numbers = array_map('intval', explode(',', $_POST['numbers']));
+                $bet = floatval($_POST['bet']);
+                
+                if ($playerId && count($numbers) >= 1 && count($numbers) <= 10 && $bet > 0) {
+                    $rowId = addRow($conn, $playerId, $selected_date, $numbers, $bet, $winning_numbers);
+                    if ($rowId) {
+                        echo json_encode(['success' => true, 'id' => $rowId]);
+                    } else {
+                        echo json_encode(['success' => false, 'error' => 'Kon rij niet opslaan']);
+                    }
+                } else {
+                    echo json_encode(['success' => false, 'error' => 'Ongeldige invoer']);
+                }
+                exit;
+                
+            case 'delete_row':
+                $rowId = intval($_POST['row_id']);
+                if (deleteRow($conn, $rowId)) {
+                    echo json_encode(['success' => true]);
+                } else {
+                    echo json_encode(['success' => false, 'error' => 'Kon rij niet verwijderen']);
+                }
+                exit;
+                
+            case 'add_player':
+                $name = trim($_POST['name']);
+                $alias = trim($_POST['alias'] ?? '');
+                $color = $_POST['color'] ?? '#3B82F6';
+                
+                if ($name) {
+                    $playerId = addPlayer($conn, $name, $alias, $color);
+                    if ($playerId) {
+                        echo json_encode(['success' => true, 'id' => $playerId, 'name' => $name, 'alias' => $alias, 'color' => $color]);
+                    } else {
+                        echo json_encode(['success' => false, 'error' => 'Kon speler niet toevoegen']);
+                    }
+                } else {
+                    echo json_encode(['success' => false, 'error' => 'Naam is verplicht']);
+                }
+                exit;
+                
+            case 'save_numbers':
+                $numbers = array_map('intval', explode(',', $_POST['numbers']));
+                if (count($numbers) === 20) {
+                    saveWinningNumbersToDatabase($selected_date, $numbers, $conn);
+                    echo json_encode(['success' => true]);
+                } else {
+                    echo json_encode(['success' => false, 'error' => 'Voer exact 20 nummers in']);
+                }
+                exit;
         }
     }
-    
-    $winnings = floatval($bon['bet']) * $multiplier;
-    
-    return [
-        'match_count' => $match_count,
-        'multiplier' => $multiplier,
-        'winnings' => $winnings,
-        'matches' => $matches
-    ];
 }
 
-$total_bet = 0;
-$total_winnings = 0;
-$bon_results = [];
-
-if ($bons) {
-    foreach ($bons as $bon) {
-        $res = calculateBonResults($bon, $winning_numbers, $game_types, $has_valid_numbers);
-        $bon_results[$bon['id']] = $res;
-        $total_bet += floatval($bon['bet']);
-        if ($res['winnings'] !== null) {
-            $total_winnings += $res['winnings'];
-        }
-    }
-}
-$total_profit = $has_valid_numbers ? ($total_winnings - $total_bet) : null;
-
-$game_types_json = json_encode($game_types);
+$multipliers = getMultipliers();
 ?>
 <!DOCTYPE html>
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lucky Day Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>LuckyDays Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #F8F9FA;
-            color: #1A1A1A;
-            line-height: 1.6;
-        }
-        .navbar {
-            background: #FFFFFF;
-            border-bottom: 1px solid #E5E7EB;
-            padding: 1rem 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        .navbar-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #10B981;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .nav-links {
-            display: flex;
-            gap: 2rem;
-            align-items: center;
-        }
-        .nav-links a {
-            color: #6B7280;
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-        .nav-links a:hover, .nav-links a.active { color: #10B981; }
-        .user-menu {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        .user-badge {
-            background: #F3F4F6;
-            padding: 0.5rem 1rem;
-            border-radius: 50px;
-            font-weight: 500;
-            font-size: 0.875rem;
-        }
-        .btn {
-            padding: 0.625rem 1.25rem;
-            border-radius: 8px;
-            font-weight: 500;
-            font-size: 0.875rem;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .btn-primary { background: #10B981; color: white; }
-        .btn-primary:hover { background: #059669; }
-        .btn-secondary { background: #F3F4F6; color: #374151; }
-        .btn-secondary:hover { background: #E5E7EB; }
-        .btn-danger { background: #FEE2E2; color: #DC2626; }
-        .btn-danger:hover { background: #FECACA; }
-        .btn-sm { padding: 0.375rem 0.75rem; font-size: 0.75rem; }
-        .btn-lg { padding: 1rem 2rem; font-size: 1rem; }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        .page-header { margin-bottom: 2rem; }
-        .page-title {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-        .page-subtitle { color: #6B7280; font-size: 1rem; }
-        .card {
-            background: #FFFFFF;
-            border-radius: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-        .card-title { font-size: 1.125rem; font-weight: 600; }
-        .date-selector {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .date-btn {
-            padding: 0.75rem 1rem;
-            border: 1px solid #E5E7EB;
-            background: white;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-align: center;
-            min-width: 80px;
-            text-decoration: none;
-            color: #374151;
-        }
-        .date-btn:hover { border-color: #10B981; background: #F0FDF4; }
-        .date-btn.active { background: #10B981; border-color: #10B981; color: white; }
-        .date-btn .day { font-size: 0.75rem; text-transform: uppercase; opacity: 0.7; }
-        .date-btn .date { font-weight: 600; font-size: 1rem; }
-        .date-picker-row {
-            display: flex;
-            justify-content: center;
-            margin-top: 1rem;
-            gap: 1rem;
-            align-items: center;
-        }
-        .date-input {
-            padding: 0.75rem 1rem;
-            border: 1px solid #E5E7EB;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-family: inherit;
-        }
-        .numbers-grid {
-            display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            gap: 0.75rem;
-        }
-        @media (max-width: 768px) {
-            .numbers-grid { grid-template-columns: repeat(5, 1fr); }
-        }
-        .number-ball {
-            width: 48px;
-            height: 48px;
+        * { font-family: 'Inter', sans-serif; }
+        .number-pill { transition: all 0.15s ease; }
+        .number-pill.selected { transform: scale(1.05); }
+        .number-pill.winning {
             background: linear-gradient(135deg, #10B981 0%, #059669 100%);
             color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 1.1rem;
             box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
-            margin: 0 auto;
         }
-        .number-ball.empty {
-            background: #F3F4F6;
-            color: #9CA3AF;
-            box-shadow: none;
+        .toast { animation: slideIn 0.3s ease; }
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            padding: 0.375rem 0.75rem;
-            border-radius: 50px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-        .status-database { background: #D1FAE5; color: #065F46; }
-        .status-scraped { background: #DBEAFE; color: #1E40AF; }
-        .status-none { background: #FEE2E2; color: #991B1B; }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-        @media (max-width: 768px) {
-            .stats-grid { grid-template-columns: 1fr; }
-        }
-        .stat-card {
-            background: #FFFFFF;
-            border-radius: 12px;
-            padding: 1.25rem;
-            border: 1px solid #E5E7EB;
-        }
-        .stat-label { color: #6B7280; font-size: 0.875rem; margin-bottom: 0.25rem; }
-        .stat-value { font-size: 1.5rem; font-weight: 700; }
-        .stat-positive { color: #10B981; }
-        .stat-negative { color: #EF4444; }
-        .bons-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .bons-table th {
-            text-align: left;
-            padding: 1rem;
-            font-weight: 600;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            color: #6B7280;
-            border-bottom: 1px solid #E5E7EB;
-        }
-        .bons-table td {
-            padding: 1rem;
-            border-bottom: 1px solid #F3F4F6;
-            vertical-align: middle;
-        }
-        .bons-table tr:hover { background: #F9FAFB; }
-        .player-tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 50px;
-            font-weight: 500;
-            font-size: 0.875rem;
-        }
-        .player-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-        .bon-numbers {
-            display: flex;
-            gap: 0.25rem;
-            flex-wrap: wrap;
-        }
-        .bon-number {
-            background: #F3F4F6;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-        .bon-number.match {
-            background: #D1FAE5;
-            color: #065F46;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: #6B7280;
-        }
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-        .modal-overlay.active { display: flex; }
-        .modal {
-            background: white;
-            border-radius: 16px;
-            padding: 2rem;
-            max-width: 800px;
-            width: 95%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-        .modal-title { font-size: 1.25rem; font-weight: 600; }
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #6B7280;
-        }
-        .form-group { margin-bottom: 1rem; }
-        .form-label {
-            display: block;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-            font-size: 0.875rem;
-        }
-        .form-input, .form-select {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-family: inherit;
-        }
-        .form-input:focus, .form-select:focus {
-            outline: none;
-            border-color: #10B981;
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-        }
-        .form-row {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
-        }
-        .number-grid {
-            display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            gap: 0.5rem;
-            margin: 1rem 0;
-        }
-        @media (max-width: 600px) {
-            .number-grid { grid-template-columns: repeat(8, 1fr); }
-        }
-        .number-btn {
-            width: 100%;
-            aspect-ratio: 1;
-            border: 2px solid #E5E7EB;
-            background: white;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .number-btn:hover { border-color: #10B981; background: #F0FDF4; }
-        .number-btn.selected {
-            background: #10B981;
-            border-color: #10B981;
-            color: white;
-        }
-        .number-btn.winning {
-            background: #FEF3C7;
-            border-color: #F59E0B;
-        }
-        .number-btn.selected.winning {
-            background: linear-gradient(135deg, #10B981 50%, #F59E0B 50%);
-            color: white;
-        }
-        .selected-numbers {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            min-height: 40px;
-            padding: 0.75rem;
-            background: #F9FAFB;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        .selected-num {
-            background: #10B981;
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 50px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-        .selected-num .remove {
-            cursor: pointer;
-            opacity: 0.8;
-        }
-        .selected-num .remove:hover { opacity: 1; }
-        .keyboard-hint {
-            background: #F0FDF4;
-            border: 1px solid #D1FAE5;
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            font-size: 0.8rem;
-            color: #065F46;
-            margin-bottom: 1rem;
-        }
-        .keyboard-hint kbd {
-            background: white;
-            padding: 0.125rem 0.375rem;
-            border-radius: 4px;
-            font-family: monospace;
-            border: 1px solid #D1FAE5;
-        }
-        .player-select-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .player-option {
-            padding: 0.75rem;
-            border: 2px solid #E5E7EB;
-            border-radius: 8px;
-            cursor: pointer;
-            text-align: center;
-            transition: all 0.15s;
-        }
-        .player-option:hover { border-color: #10B981; }
-        .player-option.selected { border-color: #10B981; background: #F0FDF4; }
-        .player-option .name { font-weight: 600; }
-        .player-option .alias { font-size: 0.75rem; color: #6B7280; }
-        .section-divider {
-            height: 1px;
-            background: #E5E7EB;
-            margin: 1.5rem 0;
-        }
-        .game-type-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .game-type-btn {
-            padding: 0.75rem;
-            border: 2px solid #E5E7EB;
-            border-radius: 8px;
-            background: white;
-            cursor: pointer;
-            text-align: center;
-            font-weight: 500;
-            transition: all 0.15s;
-        }
-        .game-type-btn:hover { border-color: #10B981; }
-        .game-type-btn.selected { border-color: #10B981; background: #10B981; color: white; }
     </style>
 </head>
-<body>
-    <nav class="navbar">
-        <div class="navbar-content">
-            <div class="logo"><span>🍀</span> Lucky Day</div>
-            <div class="nav-links">
-                <a href="/dashboard.php" class="active">Dashboard</a>
-                <a href="/spelers.php">Spelers</a>
-                <a href="/balans.php">Balans</a>
-                <?php if ($isAdmin): ?>
-                    <a href="/spellen.php">Spellen</a>
-                    <a href="/php/admin_beheer.php">Beheer</a>
-                <?php endif; ?>
-            </div>
-            <div class="user-menu">
-                <span class="user-badge"><?php echo htmlspecialchars($_SESSION['username']); ?></span>
-                <a href="/logout.php" class="btn btn-secondary btn-sm">Uitloggen</a>
+<body class="bg-gray-50 min-h-screen">
+    <div id="toast" class="fixed top-4 right-4 z-50 hidden"></div>
+
+    <nav class="bg-white border-b border-gray-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <span class="text-xl font-semibold text-gray-900">LuckyDays</span>
+                    <div class="hidden md:flex space-x-6">
+                        <a href="dashboard.php" class="text-gray-900 font-medium">Dashboard</a>
+                        <a href="spelers.php" class="text-gray-500 hover:text-gray-900">Spelers</a>
+                        <a href="balans.php" class="text-gray-500 hover:text-gray-900">Balans</a>
+                        <?php if ($isAdmin): ?>
+                        <a href="spellen.php" class="text-gray-500 hover:text-gray-900">Spellen</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <span class="text-sm text-gray-500 mr-4"><?= htmlspecialchars($username) ?></span>
+                    <a href="logout.php" class="text-sm text-gray-500 hover:text-gray-900">Uitloggen</a>
+                </div>
             </div>
         </div>
     </nav>
 
-    <div class="container">
-        <div class="page-header">
-            <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Lucky Day uitslagen en bonnen voor <?php echo date('d M Y', strtotime($selected_date)); ?></p>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-wrap gap-2 mb-8 justify-center">
+            <?php foreach ($date_range as $date): ?>
+                <a href="?date=<?= $date ?>" 
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all
+                          <?= $date === $selected_date 
+                              ? 'bg-gray-900 text-white' 
+                              : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200' ?>">
+                    <?= getDayAndAbbreviatedMonth($date) ?>
+                </a>
+            <?php endforeach; ?>
         </div>
 
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Selecteer Datum</h2>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Uitslag <?= date('d-m-Y', strtotime($selected_date)) ?></h2>
+                <div class="flex items-center gap-2">
+                    <?php if ($data_source === 'database'): ?>
+                        <span class="text-xs text-gray-400">Uit database</span>
+                    <?php elseif ($data_source === 'scraped'): ?>
+                        <span class="text-xs text-green-500">Zojuist opgehaald</span>
+                    <?php endif; ?>
+                    <?php if ($isAdmin): ?>
+                        <button onclick="showEditNumbersModal()" class="text-xs text-blue-600 hover:text-blue-700">Bewerken</button>
+                    <?php endif; ?>
+                </div>
             </div>
-            <div class="date-selector">
-                <?php foreach (generateDateRange($selected_date) as $day): ?>
-                    <?php $isActive = ($day == $selected_date) ? 'active' : ''; ?>
-                    <a href="?selected_date=<?php echo $day; ?>" class="date-btn <?php echo $isActive; ?>">
-                        <div class="day"><?php echo getDayAndAbbreviatedMonth($day); ?></div>
-                    </a>
-                <?php endforeach; ?>
-            </div>
-            <div class="date-picker-row">
-                <input type="date" id="datePicker" class="date-input" value="<?php echo $selected_date; ?>">
-                <button onclick="goToDate()" class="btn btn-primary">Ga naar datum</button>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Winnende Nummers</h2>
-                <?php if ($data_source === 'database'): ?>
-                    <span class="status-badge status-database">✓ Database</span>
-                <?php elseif ($data_source === 'scraped'): ?>
-                    <span class="status-badge status-scraped">↓ Opgehaald</span>
-                <?php else: ?>
-                    <span class="status-badge status-none">✕ Geen data</span>
-                <?php endif; ?>
-            </div>
-            <div class="numbers-grid">
-                <?php foreach ($winning_numbers as $number): ?>
-                    <div class="number-ball <?php echo ($number === '-') ? 'empty' : ''; ?>">
-                        <?php echo htmlspecialchars($number); ?>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-            <?php if ($isAdmin): ?>
-                <div class="section-divider"></div>
-                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                    <button onclick="openModal('editNumbers')" class="btn btn-secondary">Nummers Bewerken</button>
-                    <button onclick="forceScrape()" class="btn btn-secondary">Opnieuw Ophalen</button>
+            
+            <?php if ($data_source === 'none' || empty($winning_numbers)): ?>
+                <p class="text-gray-500">Geen uitslag gevonden voor deze datum</p>
+            <?php else: ?>
+                <div class="flex flex-wrap gap-2">
+                    <?php foreach ($winning_numbers as $num): ?>
+                        <span class="number-pill winning w-10 h-10 flex items-center justify-center rounded-full text-sm font-semibold">
+                            <?= htmlspecialchars($num) ?>
+                        </span>
+                    <?php endforeach; ?>
                 </div>
             <?php endif; ?>
         </div>
 
-        <?php if ($bons && count($bons) > 0): ?>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Totale Inzet</div>
-                <div class="stat-value">€<?php echo number_format($total_bet, 2, ',', '.'); ?></div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-white rounded-xl p-5 border border-gray-100">
+                <p class="text-sm text-gray-500 mb-1">Totaal Inzet</p>
+                <p class="text-2xl font-semibold text-gray-900">&euro;<?= number_format($day_stats['total_bet'], 2, ',', '.') ?></p>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Totale Winst</div>
-                <div class="stat-value"><?php echo $has_valid_numbers ? '€' . number_format($total_winnings, 2, ',', '.') : '-'; ?></div>
+            <div class="bg-white rounded-xl p-5 border border-gray-100">
+                <p class="text-sm text-gray-500 mb-1">Totaal Winst</p>
+                <p class="text-2xl font-semibold text-green-600">&euro;<?= number_format($day_stats['total_winnings'], 2, ',', '.') ?></p>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Netto Resultaat</div>
-                <?php if ($has_valid_numbers): ?>
-                <div class="stat-value <?php echo $total_profit >= 0 ? 'stat-positive' : 'stat-negative'; ?>">
-                    <?php echo $total_profit >= 0 ? '+' : ''; ?>€<?php echo number_format($total_profit, 2, ',', '.'); ?>
-                </div>
-                <?php else: ?>
-                <div class="stat-value" style="color: #9CA3AF;">Wacht op uitslag</div>
-                <?php endif; ?>
+            <div class="bg-white rounded-xl p-5 border border-gray-100">
+                <p class="text-sm text-gray-500 mb-1">Netto</p>
+                <?php $profit = $day_stats['total_winnings'] - $day_stats['total_bet']; ?>
+                <p class="text-2xl font-semibold <?= $profit >= 0 ? 'text-green-600' : 'text-red-500' ?>">
+                    &euro;<?= number_format($profit, 2, ',', '.') ?>
+                </p>
             </div>
         </div>
-        <?php endif; ?>
 
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Bonnen</h2>
-                <button onclick="openModal('addBon')" class="btn btn-primary btn-lg">+ Nieuwe Bon</button>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-semibold text-gray-900">Nieuwe Rij</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Speler</label>
+                    <select id="playerSelect" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+                        <option value="">Selecteer speler...</option>
+                        <?php if ($players): foreach ($players as $player): ?>
+                            <option value="<?= $player['id'] ?>" data-color="<?= htmlspecialchars($player['color'] ?? '#3B82F6') ?>">
+                                <?= htmlspecialchars($player['name']) ?><?= !empty($player['alias']) ? ' (' . htmlspecialchars($player['alias']) . ')' : '' ?>
+                            </option>
+                        <?php endforeach; endif; ?>
+                    </select>
+                    <button onclick="showAddPlayerModal()" class="mt-2 text-sm text-blue-600 hover:text-blue-700">+ Nieuwe speler</button>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Inzet (&euro;)</label>
+                    <input type="number" id="betInput" step="0.50" min="0.50" value="1.00" 
+                           class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Speltype</label>
+                    <div id="gameTypeDisplay" class="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-500">
+                        Automatisch (0 nummers)
+                    </div>
+                </div>
+                <div class="flex items-end">
+                    <button onclick="saveRow()" class="w-full bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors">
+                        Opslaan
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-sm font-medium text-gray-700">Gekozen nummers</label>
+                    <button onclick="clearNumbers()" class="text-sm text-gray-500 hover:text-gray-700">Wissen</button>
+                </div>
+                <div id="selectedNumbers" class="min-h-[40px] p-3 bg-gray-50 rounded-lg flex flex-wrap gap-2">
+                    <span class="text-gray-400 text-sm">Klik op nummers hieronder...</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-8 sm:grid-cols-10 gap-2" id="numberGrid">
+                <?php for ($i = 1; $i <= 80; $i++): ?>
+                    <?php $isWinning = in_array($i, array_map('intval', $winning_numbers)); ?>
+                    <button onclick="toggleNumber(<?= $i ?>)" 
+                            data-num="<?= $i ?>"
+                            class="number-pill w-full aspect-square flex items-center justify-center rounded-lg text-sm font-medium border transition-all
+                                   <?= $isWinning ? 'border-green-300 bg-green-50 text-green-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50' ?>">
+                        <?= $i ?>
+                    </button>
+                <?php endfor; ?>
             </div>
             
-            <?php if ($bons && count($bons) > 0): ?>
-            <div style="overflow-x: auto;">
-                <table class="bons-table">
-                    <thead>
-                        <tr>
-                            <th>Speler</th>
-                            <th>Nummers</th>
-                            <th>Type</th>
-                            <th>Inzet</th>
-                            <th>Treffers</th>
-                            <th>Winst</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($bons as $bon): ?>
-                            <?php $res = $bon_results[$bon['id']]; ?>
-                            <tr>
-                                <td>
-                                    <span class="player-tag" style="background: <?php echo $bon['color']; ?>20;">
-                                        <span class="player-dot" style="background: <?php echo $bon['color']; ?>;"></span>
-                                        <?php echo htmlspecialchars($bon['player_name']); ?>
-                                        <?php if ($bon['alias']): ?>
-                                            <small>(<?php echo htmlspecialchars($bon['alias']); ?>)</small>
+            <p class="text-xs text-gray-400 mt-4">
+                Shortcuts: <kbd class="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">Enter</kbd> opslaan &bull; 
+                <kbd class="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">Backspace</kbd> laatste verwijderen &bull;
+                <kbd class="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">Esc</kbd> wissen
+            </p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Rijen van <?= date('d-m-Y', strtotime($selected_date)) ?></h2>
+            
+            <?php if (empty($rows)): ?>
+                <p class="text-gray-500 text-center py-8">Nog geen rijen ingevoerd voor deze datum</p>
+            <?php else: ?>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="text-left text-sm text-gray-500 border-b border-gray-100">
+                                <th class="pb-3 font-medium">Speler</th>
+                                <th class="pb-3 font-medium">Nummers</th>
+                                <th class="pb-3 font-medium">Speltype</th>
+                                <th class="pb-3 font-medium text-right">Inzet</th>
+                                <th class="pb-3 font-medium text-center">Treffers</th>
+                                <th class="pb-3 font-medium text-right">Winst</th>
+                                <th class="pb-3 font-medium"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-50">
+                            <?php foreach ($rows as $row): 
+                                $rowNumbers = explode(',', $row['numbers']);
+                            ?>
+                            <tr class="hover:bg-gray-50">
+                                <td class="py-3">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-3 h-3 rounded-full" style="background: <?= htmlspecialchars($row['player_color'] ?? '#3B82F6') ?>"></span>
+                                        <span class="font-medium text-gray-900"><?= htmlspecialchars($row['player_name']) ?></span>
+                                        <?php if (!empty($row['player_alias'])): ?>
+                                            <span class="text-gray-400 text-sm">(<?= htmlspecialchars($row['player_alias']) ?>)</span>
                                         <?php endif; ?>
-                                    </span>
+                                    </div>
                                 </td>
-                                <td>
-                                    <div class="bon-numbers">
-                                        <?php 
-                                        $bon_nums = array_map('trim', explode(',', $bon['numbers']));
-                                        foreach ($bon_nums as $num): 
-                                            $isMatch = $has_valid_numbers && in_array($num, $winning_numbers);
+                                <td class="py-3">
+                                    <div class="flex flex-wrap gap-1">
+                                        <?php foreach ($rowNumbers as $num): 
+                                            $isMatch = in_array($num, array_map('intval', $winning_numbers));
                                         ?>
-                                            <span class="bon-number <?php echo $isMatch ? 'match' : ''; ?>">
-                                                <?php echo htmlspecialchars($num); ?>
+                                            <span class="w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
+                                                         <?= $isMatch ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600' ?>">
+                                                <?= $num ?>
                                             </span>
                                         <?php endforeach; ?>
                                     </div>
                                 </td>
-                                <td><?php echo htmlspecialchars($bon['game_type']); ?></td>
-                                <td>€<?php echo number_format($bon['bet'], 2, ',', '.'); ?></td>
-                                <?php if ($has_valid_numbers): ?>
-                                <td><strong><?php echo $res['match_count']; ?></strong></td>
-                                <td class="<?php echo ($res['winnings'] - $bon['bet']) >= 0 ? 'stat-positive' : 'stat-negative'; ?>">
-                                    €<?php echo number_format($res['winnings'], 2, ',', '.'); ?>
+                                <td class="py-3 text-sm text-gray-600"><?= htmlspecialchars($row['game_type'] ?? '') ?></td>
+                                <td class="py-3 text-sm text-gray-900 text-right">&euro;<?= number_format($row['bet'], 2, ',', '.') ?></td>
+                                <td class="py-3 text-center">
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium
+                                                 <?= ($row['matches'] ?? 0) > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500' ?>">
+                                        <?= $row['matches'] ?? 0 ?>
+                                    </span>
                                 </td>
-                                <?php else: ?>
-                                <td style="color: #9CA3AF;">-</td>
-                                <td style="color: #9CA3AF;">Wacht</td>
-                                <?php endif; ?>
-                                <td>
-                                    <form method="POST" style="display: inline;" onsubmit="return confirm('Bon verwijderen?');">
-                                        <input type="hidden" name="bon_id" value="<?php echo $bon['id']; ?>">
-                                        <button type="submit" name="delete_bon" class="btn btn-danger btn-sm">×</button>
-                                    </form>
+                                <td class="py-3 text-right font-medium <?= ($row['winnings'] ?? 0) > 0 ? 'text-green-600' : 'text-gray-400' ?>">
+                                    &euro;<?= number_format($row['winnings'] ?? 0, 2, ',', '.') ?>
+                                </td>
+                                <td class="py-3 text-right">
+                                    <button onclick="deleteRow(<?= $row['id'] ?>)" class="text-gray-400 hover:text-red-500 transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                    </button>
                                 </td>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <?php else: ?>
-            <div class="empty-state">
-                <p style="font-size: 3rem; margin-bottom: 1rem;">🎫</p>
-                <p>Nog geen bonnen voor deze datum</p>
-                <button onclick="openModal('addBon')" class="btn btn-primary btn-lg" style="margin-top: 1rem;">+ Eerste Bon Toevoegen</button>
-            </div>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             <?php endif; ?>
         </div>
-    </div>
+    </main>
 
-    <!-- Add Bon Modal -->
-    <div class="modal-overlay" id="addBonModal">
-        <div class="modal">
-            <div class="modal-header">
-                <h3 class="modal-title">Nieuwe Bon</h3>
-                <button class="modal-close" onclick="closeModal('addBon')">&times;</button>
+    <div id="addPlayerModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Nieuwe Speler</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Naam</label>
+                    <input type="text" id="newPlayerName" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Alias (optioneel)</label>
+                    <input type="text" id="newPlayerAlias" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Kleur</label>
+                    <input type="color" id="newPlayerColor" value="#3B82F6" class="w-full h-10 rounded-lg cursor-pointer">
+                </div>
             </div>
-            
-            <div class="keyboard-hint">
-                <strong>Sneltoetsen:</strong> 
-                <kbd>Enter</kbd> Opslaan | 
-                <kbd>Backspace</kbd> Laatste nummer wissen | 
-                <kbd>Esc</kbd> Sluiten |
-                Typ nummers direct (bijv. "12" + spatie)
+            <div class="flex gap-3 mt-6">
+                <button onclick="hideAddPlayerModal()" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Annuleren</button>
+                <button onclick="addPlayer()" class="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">Toevoegen</button>
             </div>
-
-            <form method="POST" id="bonForm">
-                <div class="form-group">
-                    <label class="form-label">Speler</label>
-                    <div class="player-select-grid" id="playerGrid">
-                        <?php if (empty($all_players)): ?>
-                            <p style="color: #6B7280; grid-column: 1/-1;">Geen spelers. <a href="#" onclick="openModal('addPlayer'); return false;">Voeg eerst een speler toe</a></p>
-                        <?php else: ?>
-                            <?php foreach ($all_players as $player): ?>
-                                <div class="player-option" data-id="<?php echo $player['id']; ?>" onclick="selectPlayer(this, <?php echo $player['id']; ?>)" style="border-left: 4px solid <?php echo $player['color'] ?? '#10B981'; ?>;">
-                                    <div class="name"><?php echo htmlspecialchars($player['name']); ?></div>
-                                    <?php if ($player['alias']): ?>
-                                        <div class="alias"><?php echo htmlspecialchars($player['alias']); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </div>
-                    <input type="hidden" name="player_id" id="selectedPlayerId" required>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Speltype</label>
-                    <div class="game-type-grid" id="gameTypeGrid">
-                        <?php foreach ($game_types as $gt): ?>
-                            <div class="game-type-btn" data-type="<?php echo htmlspecialchars($gt['name']); ?>" data-max="<?php echo $gt['numbers_count']; ?>" onclick="selectGameType(this)">
-                                <?php echo htmlspecialchars($gt['name']); ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <input type="hidden" name="game_type" id="selectedGameType" required>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Gekozen Nummers <span id="numberCount">(0/5)</span></label>
-                    <div class="selected-numbers" id="selectedNumbers"></div>
-                    <input type="hidden" name="bon_numbers" id="bonNumbersInput" required>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Kies nummers (1-80)</label>
-                    <div class="number-grid" id="numberGrid">
-                        <?php for ($i = 1; $i <= 80; $i++): ?>
-                            <?php $isWinning = $has_valid_numbers && in_array((string)$i, $winning_numbers); ?>
-                            <button type="button" class="number-btn <?php echo $isWinning ? 'winning' : ''; ?>" data-num="<?php echo $i; ?>" onclick="toggleNumber(<?php echo $i; ?>)">
-                                <?php echo $i; ?>
-                            </button>
-                        <?php endfor; ?>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Inzet (€)</label>
-                    <input type="number" name="bon_bet" id="bonBet" class="form-input" required min="1" step="1" value="1" style="font-size: 1.25rem; font-weight: 600;">
-                </div>
-
-                <button type="submit" name="add_bon" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 1rem;">
-                    Bon Opslaan
-                </button>
-            </form>
         </div>
     </div>
 
-    <!-- Add Player Modal -->
-    <div class="modal-overlay" id="addPlayerModal">
-        <div class="modal" style="max-width: 400px;">
-            <div class="modal-header">
-                <h3 class="modal-title">Nieuwe Speler</h3>
-                <button class="modal-close" onclick="closeModal('addPlayer')">&times;</button>
+    <div id="editNumbersModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Winnende Nummers Bewerken</h3>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">20 nummers (kommagescheiden)</label>
+                <textarea id="editNumbersInput" rows="4" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"><?= implode(',', $winning_numbers) ?></textarea>
             </div>
-            <form method="POST">
-                <div class="form-group">
-                    <label class="form-label">Naam</label>
-                    <input type="text" name="player_name" class="form-input" required placeholder="Bijv. Jan">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Alias (optioneel)</label>
-                    <input type="text" name="player_alias" class="form-input" placeholder="Bijv. J.">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Kleur</label>
-                    <input type="color" name="player_color" value="#10B981" style="width: 100%; height: 50px; border: none; cursor: pointer;">
-                </div>
-                <button type="submit" name="add_player" class="btn btn-primary" style="width: 100%;">Speler Toevoegen</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Edit Numbers Modal -->
-    <div class="modal-overlay" id="editNumbersModal">
-        <div class="modal" style="max-width: 400px;">
-            <div class="modal-header">
-                <h3 class="modal-title">Winnende Nummers</h3>
-                <button class="modal-close" onclick="closeModal('editNumbers')">&times;</button>
+            <div class="flex gap-3 mt-6">
+                <button onclick="hideEditNumbersModal()" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Annuleren</button>
+                <button onclick="saveNumbers()" class="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">Opslaan</button>
             </div>
-            <form method="POST">
-                <div class="form-group">
-                    <label class="form-label">20 nummers (elk op nieuwe regel)</label>
-                    <textarea name="winning_numbers" class="form-input" rows="12" required style="font-family: monospace;"><?php echo implode("\n", $winning_numbers); ?></textarea>
-                </div>
-                <button type="submit" name="set_winning_numbers" class="btn btn-primary" style="width: 100%;">Opslaan</button>
-            </form>
         </div>
     </div>
 
     <script>
-        const gameTypes = <?php echo $game_types_json; ?>;
         let selectedNumbers = [];
-        let maxNumbers = 5;
-        let numberInputBuffer = '';
-        let bufferTimeout = null;
-
-        function goToDate() {
-            const date = document.getElementById('datePicker').value;
-            if (date) window.location.href = '?selected_date=' + date;
-        }
-
-        function openModal(name) {
-            document.getElementById(name + 'Modal').classList.add('active');
-            if (name === 'addBon') {
-                document.addEventListener('keydown', handleKeyboard);
-            }
-        }
-
-        function closeModal(name) {
-            document.getElementById(name + 'Modal').classList.remove('active');
-            if (name === 'addBon') {
-                document.removeEventListener('keydown', handleKeyboard);
-            }
-        }
-
-        function selectPlayer(el, id) {
-            document.querySelectorAll('.player-option').forEach(p => p.classList.remove('selected'));
-            el.classList.add('selected');
-            document.getElementById('selectedPlayerId').value = id;
-        }
-
-        function selectGameType(el) {
-            document.querySelectorAll('.game-type-btn').forEach(g => g.classList.remove('selected'));
-            el.classList.add('selected');
-            const type = el.dataset.type;
-            maxNumbers = parseInt(el.dataset.max);
-            document.getElementById('selectedGameType').value = type;
-            document.getElementById('numberCount').textContent = `(${selectedNumbers.length}/${maxNumbers})`;
-            
-            if (selectedNumbers.length > maxNumbers) {
-                selectedNumbers = selectedNumbers.slice(0, maxNumbers);
-                updateSelectedDisplay();
-            }
-        }
+        const winningNumbers = <?= json_encode(array_map('intval', $winning_numbers)) ?>;
+        const maxNumbers = 10;
 
         function toggleNumber(num) {
             const idx = selectedNumbers.indexOf(num);
@@ -916,108 +380,216 @@ $game_types_json = json_encode($game_types);
                 selectedNumbers.splice(idx, 1);
             } else if (selectedNumbers.length < maxNumbers) {
                 selectedNumbers.push(num);
+            } else {
+                showToast('Maximum ' + maxNumbers + ' nummers', 'warning');
+                return;
             }
-            updateSelectedDisplay();
+            updateUI();
         }
 
-        function removeNumber(num) {
-            const idx = selectedNumbers.indexOf(num);
-            if (idx > -1) {
-                selectedNumbers.splice(idx, 1);
-                updateSelectedDisplay();
-            }
+        function clearNumbers() {
+            selectedNumbers = [];
+            updateUI();
         }
 
-        function updateSelectedDisplay() {
-            const container = document.getElementById('selectedNumbers');
-            container.innerHTML = selectedNumbers.map(n => 
-                `<span class="selected-num">${n}<span class="remove" onclick="removeNumber(${n})">×</span></span>`
-            ).join('');
-            
-            document.getElementById('bonNumbersInput').value = selectedNumbers.join(',');
-            document.getElementById('numberCount').textContent = `(${selectedNumbers.length}/${maxNumbers})`;
-            
-            document.querySelectorAll('.number-btn').forEach(btn => {
+        function updateUI() {
+            document.querySelectorAll('#numberGrid button').forEach(btn => {
                 const num = parseInt(btn.dataset.num);
-                if (selectedNumbers.includes(num)) {
-                    btn.classList.add('selected');
+                const isSelected = selectedNumbers.includes(num);
+                
+                btn.classList.remove('ring-2', 'ring-gray-900', 'bg-gray-900', 'text-white');
+                
+                if (isSelected) {
+                    btn.classList.add('ring-2', 'ring-gray-900', 'bg-gray-900', 'text-white');
+                }
+            });
+
+            const container = document.getElementById('selectedNumbers');
+            if (selectedNumbers.length === 0) {
+                container.innerHTML = '<span class="text-gray-400 text-sm">Klik op nummers hieronder...</span>';
+            } else {
+                container.innerHTML = selectedNumbers.map(num => {
+                    const isWinning = winningNumbers.includes(num);
+                    return `<span class="w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium cursor-pointer
+                                  ${isWinning ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}"
+                                  onclick="toggleNumber(${num})">${num}</span>`;
+                }).join('');
+            }
+
+            const gameType = selectedNumbers.length > 0 ? selectedNumbers.length + '-getallen' : 'Automatisch';
+            document.getElementById('gameTypeDisplay').textContent = gameType + ' (' + selectedNumbers.length + ' nummers)';
+        }
+
+        function saveRow() {
+            const playerId = document.getElementById('playerSelect').value;
+            const bet = parseFloat(document.getElementById('betInput').value);
+
+            if (!playerId) {
+                showToast('Selecteer een speler', 'error');
+                return;
+            }
+            if (selectedNumbers.length < 1) {
+                showToast('Selecteer minimaal 1 nummer', 'error');
+                return;
+            }
+            if (bet <= 0) {
+                showToast('Voer een geldige inzet in', 'error');
+                return;
+            }
+
+            fetch('dashboard.php?date=<?= $selected_date ?>', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=add_row&player_id=${playerId}&numbers=${selectedNumbers.join(',')}&bet=${bet}`
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Rij opgeslagen!', 'success');
+                    selectedNumbers = [];
+                    updateUI();
+                    location.reload();
                 } else {
-                    btn.classList.remove('selected');
+                    showToast(data.error || 'Fout bij opslaan', 'error');
+                }
+            })
+            .catch(() => showToast('Netwerkfout', 'error'));
+        }
+
+        function deleteRow(id) {
+            if (!confirm('Weet je zeker dat je deze rij wilt verwijderen?')) return;
+            
+            fetch('dashboard.php?date=<?= $selected_date ?>', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=delete_row&row_id=${id}`
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Rij verwijderd', 'success');
+                    location.reload();
+                } else {
+                    showToast(data.error || 'Fout bij verwijderen', 'error');
                 }
             });
         }
 
-        function handleKeyboard(e) {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        function showAddPlayerModal() {
+            document.getElementById('addPlayerModal').classList.remove('hidden');
+            document.getElementById('newPlayerName').focus();
+        }
+
+        function hideAddPlayerModal() {
+            document.getElementById('addPlayerModal').classList.add('hidden');
+        }
+
+        function showEditNumbersModal() {
+            document.getElementById('editNumbersModal').classList.remove('hidden');
+        }
+
+        function hideEditNumbersModal() {
+            document.getElementById('editNumbersModal').classList.add('hidden');
+        }
+
+        function saveNumbers() {
+            const input = document.getElementById('editNumbersInput').value;
             
-            if (e.key === 'Escape') {
-                closeModal('addBon');
+            fetch('dashboard.php?date=<?= $selected_date ?>', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=save_numbers&numbers=${encodeURIComponent(input)}`
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Nummers opgeslagen!', 'success');
+                    location.reload();
+                } else {
+                    showToast(data.error || 'Fout bij opslaan', 'error');
+                }
+            });
+        }
+
+        function addPlayer() {
+            const name = document.getElementById('newPlayerName').value.trim();
+            const alias = document.getElementById('newPlayerAlias').value.trim();
+            const color = document.getElementById('newPlayerColor').value;
+
+            if (!name) {
+                showToast('Naam is verplicht', 'error');
                 return;
             }
-            
+
+            fetch('dashboard.php?date=<?= $selected_date ?>', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=add_player&name=${encodeURIComponent(name)}&alias=${encodeURIComponent(alias)}&color=${encodeURIComponent(color)}`
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Speler toegevoegd!', 'success');
+                    const select = document.getElementById('playerSelect');
+                    const option = document.createElement('option');
+                    option.value = data.id;
+                    option.textContent = data.name + (data.alias ? ' (' + data.alias + ')' : '');
+                    select.appendChild(option);
+                    select.value = data.id;
+                    hideAddPlayerModal();
+                    document.getElementById('newPlayerName').value = '';
+                    document.getElementById('newPlayerAlias').value = '';
+                } else {
+                    showToast(data.error || 'Fout bij toevoegen', 'error');
+                }
+            });
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-gray-800'
+            };
+            toast.className = `toast px-4 py-2 rounded-lg text-white text-sm font-medium ${colors[type]}`;
+            toast.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+                if (e.key === 'Enter' && e.target.id !== 'newPlayerName' && e.target.id !== 'newPlayerAlias' && e.target.id !== 'editNumbersInput') {
+                    e.preventDefault();
+                    saveRow();
+                }
+                return;
+            }
+
             if (e.key === 'Enter') {
                 e.preventDefault();
-                document.getElementById('bonForm').submit();
-                return;
-            }
-            
-            if (e.key === 'Backspace') {
+                saveRow();
+            } else if (e.key === 'Backspace') {
                 e.preventDefault();
                 if (selectedNumbers.length > 0) {
                     selectedNumbers.pop();
-                    updateSelectedDisplay();
+                    updateUI();
                 }
-                return;
-            }
-            
-            if (/^\d$/.test(e.key)) {
+            } else if (e.key === 'Escape') {
                 e.preventDefault();
-                numberInputBuffer += e.key;
-                
-                clearTimeout(bufferTimeout);
-                bufferTimeout = setTimeout(() => {
-                    const num = parseInt(numberInputBuffer);
-                    if (num >= 1 && num <= 80 && !selectedNumbers.includes(num) && selectedNumbers.length < maxNumbers) {
-                        selectedNumbers.push(num);
-                        updateSelectedDisplay();
-                    }
-                    numberInputBuffer = '';
-                }, 300);
-            }
-            
-            if (e.key === ' ' || e.key === ',') {
-                e.preventDefault();
-                if (numberInputBuffer) {
-                    const num = parseInt(numberInputBuffer);
-                    if (num >= 1 && num <= 80 && !selectedNumbers.includes(num) && selectedNumbers.length < maxNumbers) {
-                        selectedNumbers.push(num);
-                        updateSelectedDisplay();
-                    }
-                    numberInputBuffer = '';
-                    clearTimeout(bufferTimeout);
+                if (!document.getElementById('addPlayerModal').classList.contains('hidden')) {
+                    hideAddPlayerModal();
+                } else if (!document.getElementById('editNumbersModal').classList.contains('hidden')) {
+                    hideEditNumbersModal();
+                } else {
+                    clearNumbers();
                 }
             }
-        }
-
-        function forceScrape() {
-            if (confirm('Nummers opnieuw ophalen?')) {
-                fetch('run_scraper.php?date=<?php echo $selected_date; ?>&force=1')
-                    .then(r => r.text())
-                    .then(() => location.reload());
-            }
-        }
-
-        document.querySelectorAll('.modal-overlay').forEach(m => {
-            m.addEventListener('click', e => {
-                if (e.target === m) {
-                    const name = m.id.replace('Modal', '');
-                    closeModal(name);
-                }
-            });
         });
 
-        const firstGameType = document.querySelector('.game-type-btn');
-        if (firstGameType) selectGameType(firstGameType);
+        updateUI();
     </script>
 </body>
 </html>

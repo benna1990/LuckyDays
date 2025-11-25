@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (!empty($name)) {
             pg_query_params($conn, 
-                "INSERT INTO players (name, alias, color, date) VALUES ($1, $2, $3, CURRENT_DATE)",
+                "INSERT INTO players (name, alias, color, created_at) VALUES ($1, $2, $3, NOW())",
                 [$name, $alias, $color]
             );
         }

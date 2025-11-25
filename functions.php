@@ -33,15 +33,19 @@ function saveWinningNumbersToDatabase($selected_date, $winning_numbers, $conn) {
 }
 
 function scrapeLuckyDayNumbers($date) {
-    $url = "https://www.loten.nl/luckyday/";
+    $url = "https://luckyday.nederlandseloterij.nl/uitslag?date=" . $date;
     
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language: nl-NL,nl;q=0.9,en;q=0.8'
+    ]);
     
     $html = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -51,90 +55,79 @@ function scrapeLuckyDayNumbers($date) {
         return ['success' => false, 'error' => 'Kon de pagina niet ophalen (HTTP ' . $httpCode . ')'];
     }
     
-    $dom = new HtmlDocument();
-    $dom->load($html);
+    $numbers = [];
     
-    $targetDate = new DateTime($date);
-    $targetDay = (int)$targetDate->format('j');
-    $targetMonth = strtolower($targetDate->format('F'));
+    if (preg_match_all('/<span[^>]*class="[^"]*number[^"]*"[^>]*>(\d+)<\/span>/i', $html, $matches)) {
+        $numbers = array_map('intval', $matches[1]);
+    }
     
-    $dutchMonths = [
-        'january' => 'januari', 'february' => 'februari', 'march' => 'maart',
-        'april' => 'april', 'may' => 'mei', 'june' => 'juni',
-        'july' => 'juli', 'august' => 'augustus', 'september' => 'september',
-        'october' => 'oktober', 'november' => 'november', 'december' => 'december'
-    ];
-    $targetMonthDutch = $dutchMonths[$targetMonth] ?? $targetMonth;
-    
-    $rows = $dom->find('tr');
-    
-    foreach ($rows as $row) {
-        $dateCell = $row->find('td', 0);
-        if ($dateCell) {
-            $dateText = strtolower(trim($dateCell->plaintext));
-            
-            if (strpos($dateText, (string)$targetDay) !== false && strpos($dateText, $targetMonthDutch) !== false) {
-                $numbersCell = $row->find('ul.luckyday-getallen', 0);
-                if ($numbersCell) {
-                    $numbers = [];
-                    $lis = $numbersCell->find('li');
-                    foreach ($lis as $li) {
-                        $num = trim($li->plaintext);
-                        if (is_numeric($num)) {
-                            $numbers[] = $num;
-                        }
-                    }
-                    
-                    $dom->clear();
-                    
-                    if (count($numbers) === 20) {
-                        return ['success' => true, 'numbers' => $numbers];
-                    } elseif (count($numbers) > 0) {
-                        return ['success' => true, 'numbers' => $numbers, 'warning' => 'Minder dan 20 nummers gevonden'];
-                    }
-                }
-            }
+    if (count($numbers) < 20) {
+        if (preg_match_all('/data-number="(\d+)"/i', $html, $matches)) {
+            $numbers = array_map('intval', $matches[1]);
         }
     }
     
-    $firstNumbers = $dom->find('ul.luckyday-getallen', 0);
-    if ($firstNumbers) {
-        $numbers = [];
-        $lis = $firstNumbers->find('li');
-        foreach ($lis as $li) {
-            $num = trim($li->plaintext);
-            if (is_numeric($num)) {
-                $numbers[] = $num;
+    if (count($numbers) < 20) {
+        $dom = new HtmlDocument();
+        $dom->load($html);
+        
+        $selectors = [
+            '.winning-numbers .number',
+            '.luckyday-getallen li',
+            '.result-numbers span',
+            '.numbers span',
+            '[class*="number"]'
+        ];
+        
+        foreach ($selectors as $selector) {
+            $elements = $dom->find($selector);
+            if ($elements && count($elements) >= 20) {
+                $numbers = [];
+                foreach ($elements as $el) {
+                    $num = trim($el->plaintext);
+                    if (is_numeric($num) && $num >= 1 && $num <= 80) {
+                        $numbers[] = intval($num);
+                    }
+                }
+                if (count($numbers) >= 20) {
+                    break;
+                }
             }
         }
         
         $dom->clear();
-        
-        if (count($numbers) === 20) {
-            return ['success' => true, 'numbers' => $numbers, 'warning' => 'Exacte datum niet gevonden, meest recente uitslag gebruikt'];
-        }
     }
     
-    $dom->clear();
+    $numbers = array_unique($numbers);
+    $numbers = array_filter($numbers, function($n) { return $n >= 1 && $n <= 80; });
+    $numbers = array_slice(array_values($numbers), 0, 20);
     
-    return ['success' => false, 'error' => 'Geen winnende nummers gevonden voor ' . $date];
+    if (count($numbers) === 20) {
+        sort($numbers);
+        return ['success' => true, 'numbers' => $numbers, 'date' => $date];
+    } elseif (count($numbers) > 0) {
+        sort($numbers);
+        return ['success' => true, 'numbers' => $numbers, 'date' => $date, 'warning' => 'Minder dan 20 nummers gevonden (' . count($numbers) . ')'];
+    }
+    
+    return ['success' => false, 'error' => 'Geen uitslag gevonden voor ' . $date];
 }
 
 function getOrScrapeWinningNumbers($selected_date, $conn) {
     $numbers = getWinningNumbersFromDatabase($selected_date, $conn);
     
     if ($numbers !== null) {
-        return ['source' => 'database', 'numbers' => $numbers];
+        return ['source' => 'database', 'numbers' => $numbers, 'date' => $selected_date];
     }
     
     $scrapeResult = scrapeLuckyDayNumbers($selected_date);
     
     if ($scrapeResult['success']) {
         saveWinningNumbersToDatabase($selected_date, $scrapeResult['numbers'], $conn);
-        return ['source' => 'scraped', 'numbers' => $scrapeResult['numbers']];
+        return ['source' => 'scraped', 'numbers' => $scrapeResult['numbers'], 'date' => $selected_date];
     }
     
-    return ['source' => 'none', 'numbers' => array_fill(0, 20, '-'), 'error' => $scrapeResult['error'] ?? 'Onbekende fout'];
+    return ['source' => 'none', 'numbers' => [], 'error' => $scrapeResult['error'] ?? 'Geen uitslag gevonden voor deze datum', 'date' => $selected_date];
 }
 
 function generateDateRange($selected_date) {
@@ -163,6 +156,142 @@ function getDayAndAbbreviatedMonth($date) {
     $month = $maanden[date('n', strtotime($date)) - 1];
 
     return "$dayOfWeek $day $month";
+}
+
+function getGameTypeFromCount($count) {
+    if ($count >= 1 && $count <= 10) {
+        return $count . '-getallen';
+    }
+    return null;
+}
+
+function getMultipliers() {
+    return [
+        '1-getallen' => [1 => 4],
+        '2-getallen' => [2 => 14],
+        '3-getallen' => [3 => 50, 2 => 10],
+        '4-getallen' => [4 => 100, 3 => 20, 2 => 2],
+        '5-getallen' => [5 => 300, 4 => 80, 3 => 5],
+        '6-getallen' => [6 => 1500, 5 => 100, 4 => 10, 3 => 2],
+        '7-getallen' => [7 => 5000, 6 => 500, 5 => 25, 4 => 5],
+        '8-getallen' => [8 => 10000, 7 => 1000, 6 => 100, 5 => 10, 4 => 2],
+        '9-getallen' => [9 => 25000, 8 => 2500, 7 => 250, 6 => 25, 5 => 5],
+        '10-getallen' => [10 => 100000, 9 => 5000, 8 => 500, 7 => 50, 6 => 10, 5 => 2]
+    ];
+}
+
+function calculateWinnings($numbers, $winningNumbers, $bet) {
+    $count = count($numbers);
+    $gameType = getGameTypeFromCount($count);
+    
+    if (!$gameType) {
+        return ['matches' => 0, 'multiplier' => 0, 'winnings' => 0];
+    }
+    
+    $matches = count(array_intersect($numbers, $winningNumbers));
+    $multipliers = getMultipliers();
+    
+    $multiplier = 0;
+    if (isset($multipliers[$gameType][$matches])) {
+        $multiplier = $multipliers[$gameType][$matches];
+    }
+    
+    $winnings = $bet * $multiplier;
+    
+    return [
+        'matches' => $matches,
+        'multiplier' => $multiplier,
+        'winnings' => $winnings,
+        'game_type' => $gameType
+    ];
+}
+
+function getAllPlayers($conn) {
+    $result = pg_query($conn, "SELECT id, name, alias, color FROM players ORDER BY name");
+    return $result ? pg_fetch_all($result) : [];
+}
+
+function getPlayerById($conn, $id) {
+    $result = pg_query_params($conn, "SELECT id, name, alias, color FROM players WHERE id = $1", [$id]);
+    return $result && pg_num_rows($result) > 0 ? pg_fetch_assoc($result) : null;
+}
+
+function addPlayer($conn, $name, $alias = '', $color = '#3B82F6') {
+    $result = pg_query_params($conn, 
+        "INSERT INTO players (name, alias, color, created_at) VALUES ($1, $2, $3, NOW()) RETURNING id",
+        [$name, $alias, $color]
+    );
+    return $result ? pg_fetch_assoc($result)['id'] : false;
+}
+
+function getRowsByDate($conn, $date) {
+    $result = pg_query_params($conn, 
+        "SELECT b.*, p.name as player_name, p.alias as player_alias, p.color as player_color 
+         FROM bons b 
+         JOIN players p ON b.player_id = p.id 
+         WHERE b.date = $1 
+         ORDER BY p.name, b.created_at DESC",
+        [$date]
+    );
+    return $result ? pg_fetch_all($result) : [];
+}
+
+function addRow($conn, $playerId, $date, $numbers, $bet, $winningNumbers) {
+    $numbersArray = is_array($numbers) ? $numbers : explode(',', $numbers);
+    $winningArray = is_array($winningNumbers) ? $winningNumbers : explode(',', $winningNumbers);
+    
+    $result = calculateWinnings($numbersArray, $winningArray, $bet);
+    
+    $numbersStr = implode(',', $numbersArray);
+    
+    $insertResult = pg_query_params($conn,
+        "INSERT INTO bons (player_id, date, numbers, bet, game_type, matches, multiplier, winnings, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING id",
+        [
+            $playerId, 
+            $date, 
+            $numbersStr, 
+            $bet, 
+            $result['game_type'],
+            $result['matches'],
+            $result['multiplier'],
+            $result['winnings']
+        ]
+    );
+    
+    return $insertResult ? pg_fetch_assoc($insertResult)['id'] : false;
+}
+
+function deleteRow($conn, $id) {
+    return pg_query_params($conn, "DELETE FROM bons WHERE id = $1", [$id]);
+}
+
+function getDayStats($conn, $date) {
+    $result = pg_query_params($conn,
+        "SELECT 
+            COUNT(*) as total_rows,
+            COALESCE(SUM(bet), 0) as total_bet,
+            COALESCE(SUM(winnings), 0) as total_winnings
+         FROM bons WHERE date = $1",
+        [$date]
+    );
+    return $result ? pg_fetch_assoc($result) : ['total_rows' => 0, 'total_bet' => 0, 'total_winnings' => 0];
+}
+
+function getPlayerStats($conn, $date) {
+    $result = pg_query_params($conn,
+        "SELECT 
+            p.id, p.name, p.alias, p.color,
+            COUNT(b.id) as total_rows,
+            COALESCE(SUM(b.bet), 0) as total_bet,
+            COALESCE(SUM(b.winnings), 0) as total_winnings
+         FROM players p
+         LEFT JOIN bons b ON p.id = b.player_id AND b.date = $1
+         GROUP BY p.id, p.name, p.alias, p.color
+         ORDER BY p.name",
+        [$date]
+    );
+    return $result ? pg_fetch_all($result) : [];
 }
 
 ?>

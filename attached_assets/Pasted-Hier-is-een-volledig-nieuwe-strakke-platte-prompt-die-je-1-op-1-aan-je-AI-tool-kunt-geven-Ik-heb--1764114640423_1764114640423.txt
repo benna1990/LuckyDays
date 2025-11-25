@@ -1,0 +1,245 @@
+Hier is een volledig nieuwe, strakke, platte prompt die je 1-op-1 aan je AI-tool kunt geven.
+Ik heb alle bugs, alle logica, jouw gewenste UX en jouw bestaande functionaliteit erin verwerkt — zonder ruis, zonder uitleg, alleen pure instructies.
+
+Dit is dé prompt die jouw hele app opnieuw, correct en mooi laat bouwen.
+
+⸻
+
+🔵 PLAATSELIJKE PROMPT VOOR DE AI-TOOL (VOLLEDIG, PLATTE TEKST, COPY/PASTE)
+
+Titel: Rebuild LuckyDays App – Correcte logica, correcte scraper, automatische spelbepaling, multi-rij invoer, winst per rij, verbeterde speler-logica, minimalistische UI.
+
+⸻
+
+1. Projectomschrijving
+
+Bouw een moderne webapp voor LuckyDays-bonnenadministratie. De app bestaat uit:
+	•	Dagselectie → juiste uitslag ophalen voor die dag
+	•	Spelers beheren
+	•	Bonnen/rijen invoeren (meerdere rijen per speler per dag)
+	•	Automatische spelbepaling op basis van aantal ingevulde nummers
+	•	Per rij een eigen inzet
+	•	Winst berekenen per rij op basis van formules/multiplier per speltype
+	•	Winnende nummers highlighten
+	•	Niet-winnende nummers wit laten
+	•	Responsive, minimalistisch, clean design
+
+Gebruik:
+	•	Backend: PHP of Node (mag kiezen, maar stabiel)
+	•	DB: Postgres of MySQL (tool bepaalt)
+	•	Frontend: modern design (Tailwind)
+	•	Geen ruis, geen rommelig design, alles strak en logisch
+
+⸻
+
+2. SCRAPER (CRUCIAAL)
+
+Fix de scraper volledig.
+
+Eisen:
+	•	Wanneer gebruiker een datum selecteert → fetch uitslag van exact die datum
+	•	Gebruik altijd URL-vorm:
+https://luckyday.nederlandseloterij.nl/uitslag?date=YYYY-MM-DD
+	•	Scraper moet altijd de juiste dag tonen, nooit fallback naar huidige datum
+	•	Als er geen uitslag is → toon “Geen uitslag gevonden voor deze datum”
+	•	Scraper moet JSON teruggeven:
+
+{
+  "date": "YYYY-MM-DD",
+  "numbers": [20 getallen]
+}
+
+	•	Opslaan in database, maar niet dupliceren
+
+⸻
+
+3. SPELERSMODULE FIXEN
+
+Verhelp fout:
+
+null value in column "bet" violates not-null constraint
+
+Eisen:
+	•	Bij speler toevoegen geen bet opslaan
+	•	Speler bevat ALLEEN:
+	•	id
+	•	name
+	•	alias (optioneel)
+	•	color (hex)
+	•	created_at
+
+Geen spel, geen inzet, geen nummers bij spelers opslaan.
+
+Dat hoort bij de bonnen/rijen, niet bij spelers.
+
+⸻
+
+4. BON/Rijen INVOER – NIEUWE LOGICA
+
+Belangrijk:
+
+Een gebruiker kan meerdere rijen toevoegen per speler per dag.
+Elke rij heeft:
+	•	speler_id
+	•	datum
+	•	nummers (lijst)
+	•	inzet (euro)
+	•	automatisch bepaald speltype
+	•	winst (automatisch berekend)
+
+Nieuwe invoer-UI:
+	•	Velden: speler selecteren, inzet invoeren
+	•	Nummervelden moeten werken als losse klikblokken (1–80)
+	•	Alleen gekozen nummers tonen als gekleurde blokjes
+	•	Niet gekozen nummers blijven wit
+	•	Winnende nummers (van scraper) krijgen groen of blauw
+	•	Verkeerde nummers blijven wit
+	•	Geen lijst onderin met ALLE getallen → alleen gekozen
+	•	Geen “speltype dropdown”
+	•	Het speltype wordt automatisch bepaald:
+
+aantal_ingevulde_nummers = speltype
+3 nummers → spel “3-getallen”
+4 nummers → spel “4-getallen”
+...
+max ± 10
+
+
+⸻
+
+5. SPELTYPE FORMULES / MULTIPLIERS
+
+Maak een centrale tabel of JSON met speltypes:
+
+3-getallen:
+  match3: x500
+  match2: x10
+
+4-getallen:
+  match4: x1200
+  match3: x20
+  match2: x2
+
+5-getallen:
+  match5: x6000
+  match4: x80
+  match3: x5
+
+(Exacte waardes kan ik later instellen, maak het configureerbaar.)
+
+Winstberekening:
+
+matches = aantal overeenkomende nummers
+multiplier = tabel[speltype][matchX]
+winst = inzet * multiplier
+
+Laat winst zien direct na het opslaan van de rij.
+
+⸻
+
+6. DASHBOARD
+
+Dashboard toont:
+	•	Datumselector
+	•	Uitslag (20 nummers) in mooie pill-style
+	•	Lijst met rijen van die dag, gegroepeerd per speler
+	•	Per rij:
+	•	nummers
+	•	inzet
+	•	aantal treffers
+	•	winst
+	•	Totale winst per speler
+	•	Totale winst per dag
+
+⸻
+
+7. UX / DESIGN
+
+Maak design:
+	•	Super minimalistisch
+	•	Veel whitespace
+	•	Clean nummerblokken
+	•	TailwindCSS
+	•	Donkergrijze tekst, witte achtergrond
+	•	Pills voor winnende nummers
+	•	Modern, net zoals: Notion, Linear, RemoveBG
+
+Interactie-eisen:
+	•	Klikken op nummers → vullen blokjes (max afhankelijk van speltype)
+	•	Backspace → verwijdert laatste nummer
+	•	Enter → rij opslaan
+	•	Foutmeldingen als toast (simpel)
+
+⸻
+
+8. BUGFIX EISEN (EXPLICIET)
+	1.	Scraper mag nooit de verkeerde dag tonen
+	2.	Speler toevoegen mag geen “bet null” fout geven
+	3.	Rijen tonen de juiste nummers, niet alle 1–80
+	4.	Speltype moet niet handmatig gekozen worden
+	5.	Winst per rij berekenen (niet per speler)
+	6.	Alle rijen van de gekozen datum tonen
+	7.	Bij datum wisselen → alles updaten
+	8.	Geen page reload nodig, AJAX
+
+⸻
+
+9. DATABASESTRUCTUUR (VOORGESTELD)
+
+Table: players
+
+id PK
+name
+alias
+color
+created_at
+
+Table: results (scraper)
+
+id PK
+date
+numbers (json)
+created_at
+
+Table: rows (bonnen)
+
+id PK
+player_id FK
+date
+numbers (json)
+inzet
+speltype (auto)
+matches
+multiplier
+winst
+
+
+⸻
+
+10. DOEL
+
+Lever een volledig werkende app op, met:
+	•	correcte scraper
+	•	correcte logica
+	•	correcte winstberekening
+	•	automatische spelbepaling
+	•	mooie UI
+	•	snelle invoer
+	•	multi-rij ondersteuning
+	•	strak overzicht
+
+Volledig foutloos, logisch opgebouwd en makkelijk uitbreidbaar.
+
+⸻
+
+🔵 EINDE PROMPT
+
+⸻
+
+Wil je dat ik ook:
+
+👉 een visueel mockup-ontwerp maak?
+👉 een JSON met alle spelrules klaarzet?
+👉 een verbeterde scraper lever in echte code?
+
+Zeg maar wat je wilt.
