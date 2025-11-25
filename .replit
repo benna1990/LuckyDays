@@ -36,7 +36,3 @@ externalPort = 80
 [[ports]]
 localPort = 38927
 externalPort = 3000
-
-[deployment]
-deploymentTarget = "vm"
-run = ["php", "-S", "0.0.0.0:5000"]
