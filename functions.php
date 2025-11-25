@@ -2,6 +2,8 @@
 
 require_once __DIR__ . '/php/simple_html_dom.php';
 
+use simplehtmldom\HtmlDocument;
+
 function getWinningNumbersFromDatabase($selected_date, $conn) {
     $result = pg_query_params($conn, "SELECT numbers FROM winning_numbers WHERE date = $1", [$selected_date]);
     
@@ -31,7 +33,7 @@ function saveWinningNumbersToDatabase($selected_date, $winning_numbers, $conn) {
 }
 
 function scrapeLuckyDayNumbers($date) {
-    $url = "https://luckyday.nederlandseloterij.nl/uitslag?date=" . urlencode($date);
+    $url = "https://www.loten.nl/luckyday/";
     
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -49,41 +51,73 @@ function scrapeLuckyDayNumbers($date) {
         return ['success' => false, 'error' => 'Kon de pagina niet ophalen (HTTP ' . $httpCode . ')'];
     }
     
-    $dom = new \simplehtmldom_1_5\simple_html_dom();
+    $dom = new HtmlDocument();
     $dom->load($html);
     
-    $numbers = [];
+    $targetDate = new DateTime($date);
+    $targetDay = (int)$targetDate->format('j');
+    $targetMonth = strtolower($targetDate->format('F'));
     
-    $elements = $dom->find('ul.base-ticket-numbers li span');
+    $dutchMonths = [
+        'january' => 'januari', 'february' => 'februari', 'march' => 'maart',
+        'april' => 'april', 'may' => 'mei', 'june' => 'juni',
+        'july' => 'juli', 'august' => 'augustus', 'september' => 'september',
+        'october' => 'oktober', 'november' => 'november', 'december' => 'december'
+    ];
+    $targetMonthDutch = $dutchMonths[$targetMonth] ?? $targetMonth;
     
-    if (count($elements) > 0) {
-        foreach ($elements as $element) {
-            $num = trim($element->plaintext);
-            if (is_numeric($num)) {
-                $numbers[] = $num;
+    $rows = $dom->find('tr');
+    
+    foreach ($rows as $row) {
+        $dateCell = $row->find('td', 0);
+        if ($dateCell) {
+            $dateText = strtolower(trim($dateCell->plaintext));
+            
+            if (strpos($dateText, (string)$targetDay) !== false && strpos($dateText, $targetMonthDutch) !== false) {
+                $numbersCell = $row->find('ul.luckyday-getallen', 0);
+                if ($numbersCell) {
+                    $numbers = [];
+                    $lis = $numbersCell->find('li');
+                    foreach ($lis as $li) {
+                        $num = trim($li->plaintext);
+                        if (is_numeric($num)) {
+                            $numbers[] = $num;
+                        }
+                    }
+                    
+                    $dom->clear();
+                    
+                    if (count($numbers) === 20) {
+                        return ['success' => true, 'numbers' => $numbers];
+                    } elseif (count($numbers) > 0) {
+                        return ['success' => true, 'numbers' => $numbers, 'warning' => 'Minder dan 20 nummers gevonden'];
+                    }
+                }
             }
         }
     }
     
-    if (count($numbers) === 0) {
-        $elements = $dom->find('.winning-numbers span, .number-ball, .lottery-number');
-        foreach ($elements as $element) {
-            $num = trim($element->plaintext);
-            if (is_numeric($num) && $num >= 1 && $num <= 48) {
+    $firstNumbers = $dom->find('ul.luckyday-getallen', 0);
+    if ($firstNumbers) {
+        $numbers = [];
+        $lis = $firstNumbers->find('li');
+        foreach ($lis as $li) {
+            $num = trim($li->plaintext);
+            if (is_numeric($num)) {
                 $numbers[] = $num;
             }
+        }
+        
+        $dom->clear();
+        
+        if (count($numbers) === 20) {
+            return ['success' => true, 'numbers' => $numbers, 'warning' => 'Exacte datum niet gevonden, meest recente uitslag gebruikt'];
         }
     }
     
     $dom->clear();
     
-    if (count($numbers) >= 20) {
-        return ['success' => true, 'numbers' => array_slice($numbers, 0, 20)];
-    } elseif (count($numbers) > 0) {
-        return ['success' => true, 'numbers' => $numbers, 'warning' => 'Minder dan 20 nummers gevonden'];
-    }
-    
-    return ['success' => false, 'error' => 'Geen winnende nummers gevonden voor deze datum'];
+    return ['success' => false, 'error' => 'Geen winnende nummers gevonden voor ' . $date];
 }
 
 function getOrScrapeWinningNumbers($selected_date, $conn) {
