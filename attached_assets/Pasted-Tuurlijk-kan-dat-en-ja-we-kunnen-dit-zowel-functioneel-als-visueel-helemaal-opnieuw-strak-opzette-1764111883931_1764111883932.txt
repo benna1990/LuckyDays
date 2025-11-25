@@ -1,0 +1,127 @@
+Tuurlijk kan dat — en ja, we kunnen dit zowel functioneel als visueel helemaal opnieuw strak opzetten. Ik zal ’t helder voor je neerzetten zodat je het 1-op-1 aan je AI-tool (Replit/AI builder/whatever je gebruikt) kunt geven in platte tekst, inclusief:
+	•	Het extra onderdeel: spelers → nummers → inzet → winstberekening per dag (volgens formule van de dag).
+	•	De gewenste UI-aanpassingen: minimalistisch, logisch, strak, premium, RemoveBG-achtige vibe maar volledig eigen stijl.
+	•	Duidelijke instructies zodat de tool het weer gaat bouwen in je bestaande app.
+
+⸻
+
+→ COMPLETE PROMPT OM TE GEVEN AAN JE AI-TOOL (platte tekst)
+
+Titel: Voeg spelers-module + winstberekening toe en redesign de app
+
+⸻
+
+1. Projectomschrijving
+
+Bouw verder aan de bestaande LuckyDays webapp. De app heeft al:
+	•	Datumselectie
+	•	Ophalen van uitslagen
+	•	Tonen van 20 winnende nummers per dag
+	•	Dashboard dat wisselt bij datumwijziging
+
+Nu wil ik twee grote uitbreidingen:
+
+⸻
+
+2. Nieuwe functionaliteit: Spelers + nummers + inzet + winstberekening
+
+2.1. Spelersmodule
+
+Voeg een nieuwe sectie toe waar ik meerdere spelers kan toevoegen.
+
+Voor elke speler moet ik kunnen invoeren:
+	•	Naam speler
+	•	Geplaatste nummers (1 t/m 80, meerdere mogelijk, max 10)
+	•	Inzet (bedrag in €)
+	•	Type spel / formule van de dag (bijvoorbeeld: 3-getallen, 4-getallen, 5-getallen, etc. Of custom: ‘X numbers → multiplier table’)
+
+Deze lijst van spelers moet per datum opgeslagen en geladen kunnen worden.
+
+2.2. Vergelijking met uitslag
+
+Na het ophalen van de Lucky Day uitslag moet het systeem automatisch:
+	1.	De speler’s nummers vergelijken met de 20 winnende nummers van die dag.
+	2.	Bepalen hoeveel matches de speler heeft.
+	3.	De juiste formule toepassen voor de prijs (formules variëren per type spel of per dag).
+	4.	Winst berekenen:
+winst = inzet × multiplier(matchCount)
+De multiplier moet per type spel configureerbaar zijn.
+	5.	Totaal winst/verlies tonen voor alle spelers samen.
+
+2.3. Resultaten tonen
+
+Maak een overzichtelijke tabel met:
+	•	Speler
+	•	Nummers
+	•	Inzet
+	•	Aantal treffers
+	•	Uitkeringsfactor / multiplier
+	•	Winst
+	•	Totaal winst/verlies per dag
+
+2.4. API/Fetch link afhankelijk maken van datum
+
+Gebruik deze linkvorm:
+
+https://luckyday.nederlandseloterij.nl/uitslag?date=YYYY-MM-DD
+
+Datum komt uit selected_date.
+
+⸻
+
+3. Volledige UI/UX redesign
+
+Het huidige design moet volledig worden herbouwd naar:
+
+3.1. Stijl
+	•	Minimalistisch, clean, premium SaaS stijl
+	•	Wit/licht met subtiele grijstinten
+	•	Lichte schaduwen, afgeronde hoeken
+	•	Veel spacing
+	•	Moderne fonts zoals Inter / SF Pro
+	•	UI zoals: RemoveBG, PhotoRoom, Midjourney, Notion-achtige strakheid
+	•	Mobile-first
+
+3.2. Dashboard
+	•	Grote datumselector bovenaan
+	•	Winnende nummers in clean pill-vorm badges (modern cards)
+	•	Direct eronder: spelersmodule
+	•	Daaronder: winstberekening resultaat-overzicht
+
+3.3. Interactie
+	•	Alles moet logisch en intuïtief aanvoelen
+	•	Geen “PHP look”, maar modern webdesign
+	•	Componentgedreven (cards, lists, sections)
+	•	Heldere typografie
+	•	Responsief
+
+3.4. Kleurenpalet (minimaal)
+	•	Wit (#FFFFFF)
+	•	Lichtgrijs (#F6F6F6 / #F0F0F0)
+	•	Accentkleur: blauw of groen (één kiezen)
+	•	Donkergrijs voor tekst (#1A1A1A)
+
+⸻
+
+4. Bouwopdrachten
+	•	Houd alles binnen de bestaande app (NIET opnieuw beginnen).
+	•	Refactor waar logisch, maar behoud functionaliteit.
+	•	Voeg een nieuwe route toe: /players of onderdeel in dashboard.
+	•	Maak UI/UX beter, stijlvoller en moderner.
+	•	Hergebruik bestaande databaseconnecties.
+	•	Gebruik veilige queries (prepared statements).
+	•	Zorg dat de app volledig mobiel bruikbaar is.
+
+⸻
+
+→ EINDE PROMPT VOOR DE TOOL
+
+⸻
+
+Als je wil, kan ik ook:
+	•	een visuele mockup maken
+	•	een database-schema voor de nieuwe spelersmodule
+	•	een mooie voorbeeld lay-out in HTML/CSS
+	•	of de prompt nog verder aanscherpen zodat je AI-tool 100% precies bouwt wat jij voor ogen hebt
+
+Zeg maar wat je prettig vindt.
