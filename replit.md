@@ -1,25 +1,29 @@
-# Lucky Day Lottery Tracker
+# LuckyDays Lottery Tracker
 
 ## Overview
-This is a PHP-based web application for tracking Lucky Day lottery numbers and player bets. The application allows users to:
-- View winning lottery numbers by date
-- Manage player bets and track results
-- Automatically scrape winning numbers from loten.nl
-- Smart bon-invoer with 80 number buttons and keyboard shortcuts
-- Admin panel for user and game type management
+Modern webapp voor LuckyDays-bonnenadministratie met:
+- Dagselectie met correcte uitslag ophalen
+- Spelers beheren met kleuren en aliassen  
+- Bonnen/rijen invoeren (meerdere rijen per speler per dag)
+- Automatische spelbepaling op basis van aantal ingevulde nummers
+- Per rij een eigen inzet en automatische winstberekening
+- Winnende nummers highlighten in groen
+- Responsive, minimalistisch Tailwind design
 
 ## Tech Stack
-- **Backend**: PHP 8.2 with PostgreSQL
-- **Frontend**: Modern minimalistic CSS, Inter font, vanilla JavaScript
+- **Backend**: PHP 8.2 met PostgreSQL
+- **Frontend**: TailwindCSS via CDN, Inter font, vanilla JavaScript
 - **Scraper**: PHP cURL + Simple HTML DOM Parser
 - **Database**: PostgreSQL (Replit managed)
 
 ## Database Schema
-- `admins`: User accounts with roles (admin/user)
-- `winning_numbers`: Lottery winning numbers by date
-- `players`: Player profiles (name, alias, color)
-- `bons`: Individual bets (player_id, game_type, numbers, bet, date)
-- `game_types`: Game configurations with JSON multipliers
+```sql
+players (id, name, alias, color, created_at)
+bons (id, player_id, date, numbers, bet, game_type, matches, multiplier, winnings, created_at)
+winning_numbers (date, numbers)
+admins (id, username, password, role)
+game_types (id, name, numbers_count, min_bet, bet_step, multipliers, active)
+```
 
 ## Default Login
 - Username: `admin`
@@ -28,108 +32,91 @@ This is a PHP-based web application for tracking Lucky Day lottery numbers and p
 ## Project Structure
 ```
 /
-├── index.php           # Login page with modern design
-├── dashboard.php       # Main dashboard with bon-invoer
-├── spelers.php         # Player management
-├── balans.php          # Balance overview with ROI
-├── spellen.php         # Game type configuration
+├── index.php           # Login page
+├── dashboard.php       # Main dashboard met rij-invoer
+├── spelers.php         # Speler management
+├── balans.php          # Balans overzicht met ROI
+├── spellen.php         # Speltype configuratie
 ├── logout.php          # Session logout
 ├── config.php          # PostgreSQL database config
 ├── functions.php       # Helper functions + scraper
-├── run_scraper.php     # Manual scrape trigger endpoint
+├── run_scraper.php     # Manual scrape endpoint
 ├── save_winning_numbers.php  # Save numbers endpoint
 └── php/
-    ├── simple_html_dom.php  # HTML parser library
-    ├── HtmlDocument.php     # DOM parser component
-    ├── HtmlNode.php         # DOM node component
-    ├── HtmlElement.php      # DOM element component
-    ├── constants.php        # Parser constants
-    ├── Debug.php            # Debug utilities
-    └── admin_beheer.php     # User management
+    ├── simple_html_dom.php   # HTML parser library
+    ├── HtmlDocument.php      # DOM parser
+    ├── HtmlNode.php          # DOM node
+    ├── HtmlElement.php       # DOM element
+    ├── constants.php         # Parser constants
+    ├── Debug.php             # Debug utilities
+    └── admin_beheer.php      # User management
 ```
 
 ## Key Features
 
-### 1. Smart Bon-Invoer (Ticket Entry)
-- 80 number buttons grid with visual feedback
-- Keyboard shortcuts:
-  - Enter: Save bon
-  - Backspace: Remove last number
-  - Escape: Close modal
-  - Number typing: Direct number entry
-- Player selection with color coding
-- Game type selection with dynamic max numbers
-- Winning numbers highlighted in grid
+### 1. Scraper
+- **URL**: `https://luckyday.nederlandseloterij.nl/uitslag?date=YYYY-MM-DD`
+- Altijd exacte datum ophalen, geen fallback
+- Opslaan in database, geen duplicaten
+- JSON response: `{date, numbers: [20 getallen]}`
 
-### 2. Dashboard
-- 13-day calendar navigation
-- 20 winning number balls display
-- Bons table with match highlighting
-- Stats overview (bet, winnings, profit)
-- Auto-scraping when date has no data
+### 2. Rij Invoer
+- 80 nummer-knoppen grid
+- Automatische spelbepaling: aantal nummers = speltype
+- Per rij eigen inzet
+- Keyboard shortcuts: Enter (opslaan), Backspace (verwijderen), Esc (wissen)
+- Winnende nummers groen gemarkeerd in grid
 
-### 3. Player Management
-- Player cards with color avatars
-- Alias support
-- Total bons and bet statistics
-- Recent bons list
+### 3. Multipliers (configureerbaar)
+```
+1-getallen: 1 match = 4x
+2-getallen: 2 matches = 14x
+3-getallen: 3 matches = 50x, 2 matches = 10x
+4-getallen: 4 matches = 100x, 3 matches = 20x, 2 matches = 2x
+5-getallen: 5 matches = 300x, 4 matches = 80x, 3 matches = 5x
+6-getallen: 6 matches = 1500x, 5 matches = 100x, 4 matches = 10x, 3 matches = 2x
+7-getallen: 7 matches = 5000x, 6 matches = 500x, 5 matches = 25x, 4 matches = 5x
+8-getallen: 8 matches = 10000x, 7 matches = 1000x, 6 matches = 100x, 5 matches = 10x, 4 matches = 2x
+9-getallen: 9 matches = 25000x, 8 matches = 2500x, 7 matches = 250x, 6 matches = 25x, 5 matches = 5x
+10-getallen: 10 matches = 100000x, 9 matches = 5000x, 8 matches = 500x, 7 matches = 50x, 6 matches = 10x, 5 matches = 2x
+```
 
-### 4. Balance Overview
-- Total bet/winnings/profit
-- Per-player ROI calculation
-- Optimized batch query for winning numbers
+### 4. Dashboard
+- 13-dagen datumnavigatie
+- Uitslag in pill-style bolletjes
+- Rijen gegroepeerd per speler
+- Per rij: nummers, inzet, treffers, winst
+- Totale statistieken per dag
 
-### 5. Game Types Configuration
-- Dynamic JSON multiplier structure
-- Min bet and bet step settings
-- Toggle active/inactive games
-- Visual multiplier grid display
-
-## Game Types & Multipliers
-Configurable via spellen.php with JSON multipliers:
-- 1 getal: 1 match = 4x
-- 2 getallen: 2 matches = 14x
-- 3 getallen: 3 matches = 50x
-- 4 getallen: 4 matches = 100x
-- 5 getallen: 5 matches = 300x
-- 6 getallen: 6 matches = 1500x
-- 7 getallen: 7 matches = 5000x
-- 8 getallen: 8 matches = 10000x
-- 9 getallen: 9 matches = 25000x
-- 10 getallen: 10 matches = 100000x
+### 5. Balans
+- Totale inzet/winst/netto per speler
+- ROI berekening per speler
+- Geoptimaliseerde batch queries (geen re-scraping)
 
 ## Application Flow
 ```
-1. User opens date → Check database
-2. Data exists? → Show from database
-3. No data? → Auto-scrape from loten.nl
-4. Save scraped data → Show on dashboard
-5. User adds bon → Select player, game type, numbers
-6. Bon saved → Calculate matches and winnings
-7. Balance page → Show ROI per player
+1. Gebruiker selecteert datum
+2. Check database voor uitslag
+3. Geen data? → Scrape van nederlandseloterij.nl
+4. Uitslag opslaan → Toon op dashboard
+5. Gebruiker voegt rij toe → Selecteer speler, nummers, inzet
+6. Speltype automatisch bepaald (aantal nummers)
+7. Rij opgeslagen → Matches en winst berekend
+8. Balans pagina → ROI per speler
 ```
 
-## Scraper Details
-- **Source**: https://www.loten.nl/luckyday/
-- **Method**: PHP cURL + Simple HTML DOM Parser
-- **Selector**: `ul.luckyday-getallen li` elements
-- **Numbers**: 20 winning numbers per draw (range 1-80)
-
 ## Recent Changes (Nov 25, 2025)
-- Complete UI redesign with modern Inter font styling
-- Smart bon-invoer with 80 number buttons and keyboard shortcuts
-- Game types management with JSON multipliers
-- Player profiles with colors and aliases
-- Balance page with ROI calculation per player
-- Optimized batch queries for winning numbers
-- Bons system replacing simple player entries
-- Visual number ball display for winning numbers
-- Match highlighting in bon numbers
+- Complete rebuild met Tailwind CSS
+- Scraper gefixed: nu altijd correcte datum ophalen
+- Players tabel vereenvoudigd (geen bet/date meer)
+- Automatische spelbepaling op basis van nummers
+- Per-rij winstberekening met matches
+- Minimalistisch design (Notion/Linear style)
+- Keyboard shortcuts voor snelle invoer
+- Batch queries voor balans (geen re-scraping)
 
 ## Development Notes
-- All sessions managed via PHP sessions
-- PostgreSQL connection uses environment variables (PGHOST, PGDATABASE, etc.)
-- Scraper runs automatically when opening a date without stored data
-- Dashboard shows data source indicator (database/scraped/none)
-- Balance calculation uses cached winning numbers (no re-scraping)
-- Win calculation skipped when no valid winning numbers available
+- Session management via PHP sessions
+- PostgreSQL via environment variables (PGHOST, PGDATABASE, etc.)
+- Scraper alleen wanneer datum geen stored data heeft
+- Winst berekening overgeslagen bij ontbrekende uitslag
