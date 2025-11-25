@@ -58,6 +58,8 @@ $result = getOrScrapeWinningNumbers($selected_date, $conn);
 $winning_numbers = $result['numbers'];
 $data_source = $result['source'];
 
+$has_valid_numbers = $data_source !== 'none' && !in_array('-', $winning_numbers);
+
 $players_result = pg_query_params($conn, 
     "SELECT * FROM players WHERE date = $1 ORDER BY created_at DESC", 
     [$selected_date]
@@ -72,7 +74,17 @@ foreach ($all_multipliers as $m) {
     $multipliers[$m['game_type']][$m['matches']] = floatval($m['multiplier']);
 }
 
-function calculatePlayerResults($player, $winning_numbers, $multipliers) {
+function calculatePlayerResults($player, $winning_numbers, $multipliers, $has_valid_numbers) {
+    if (!$has_valid_numbers) {
+        return [
+            'matches' => [],
+            'match_count' => null,
+            'multiplier' => null,
+            'winnings' => null,
+            'profit' => null
+        ];
+    }
+    
     $player_numbers = array_map('trim', explode(',', $player['numbers']));
     $matches = array_intersect($player_numbers, $winning_numbers);
     $match_count = count($matches);
@@ -97,13 +109,15 @@ $player_results = [];
 
 if ($players) {
     foreach ($players as $player) {
-        $result_data = calculatePlayerResults($player, $winning_numbers, $multipliers);
+        $result_data = calculatePlayerResults($player, $winning_numbers, $multipliers, $has_valid_numbers);
         $player_results[$player['id']] = $result_data;
         $total_bet += floatval($player['bet']);
-        $total_winnings += $result_data['winnings'];
+        if ($result_data['winnings'] !== null) {
+            $total_winnings += $result_data['winnings'];
+        }
     }
 }
-$total_profit = $total_winnings - $total_bet;
+$total_profit = $has_valid_numbers ? ($total_winnings - $total_bet) : null;
 ?>
 <!DOCTYPE html>
 <html lang="nl">
@@ -655,13 +669,17 @@ $total_profit = $total_winnings - $total_bet;
             </div>
             <div class="stat-card">
                 <div class="stat-label">Totale Winst</div>
-                <div class="stat-value">€<?php echo number_format($total_winnings, 2, ',', '.'); ?></div>
+                <div class="stat-value"><?php echo $has_valid_numbers ? '€' . number_format($total_winnings, 2, ',', '.') : '-'; ?></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Netto Resultaat</div>
+                <?php if ($has_valid_numbers): ?>
                 <div class="stat-value <?php echo $total_profit >= 0 ? 'stat-positive' : 'stat-negative'; ?>">
                     <?php echo $total_profit >= 0 ? '+' : ''; ?>€<?php echo number_format($total_profit, 2, ',', '.'); ?>
                 </div>
+                <?php else: ?>
+                <div class="stat-value" style="color: #9CA3AF;">Uitslag ontbreekt</div>
+                <?php endif; ?>
             </div>
         </div>
         <?php endif; ?>
@@ -709,12 +727,19 @@ $total_profit = $total_winnings - $total_bet;
                                 </td>
                                 <td><?php echo htmlspecialchars($player['game_type']); ?></td>
                                 <td>€<?php echo number_format($player['bet'], 2, ',', '.'); ?></td>
+                                <?php if ($has_valid_numbers): ?>
                                 <td><strong><?php echo $res['match_count']; ?></strong></td>
                                 <td><?php echo $res['multiplier']; ?>x</td>
                                 <td>€<?php echo number_format($res['winnings'], 2, ',', '.'); ?></td>
                                 <td class="<?php echo $res['profit'] >= 0 ? 'stat-positive' : 'stat-negative'; ?>">
                                     <?php echo $res['profit'] >= 0 ? '+' : ''; ?>€<?php echo number_format($res['profit'], 2, ',', '.'); ?>
                                 </td>
+                                <?php else: ?>
+                                <td style="color: #9CA3AF;">-</td>
+                                <td style="color: #9CA3AF;">-</td>
+                                <td style="color: #9CA3AF;">-</td>
+                                <td style="color: #9CA3AF;">Wacht op uitslag</td>
+                                <?php endif; ?>
                                 <td>
                                     <form method="POST" style="display: inline;" onsubmit="return confirm('Weet je zeker dat je deze speler wilt verwijderen?');">
                                         <input type="hidden" name="player_id" value="<?php echo $player['id']; ?>">
