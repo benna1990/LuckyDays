@@ -1,0 +1,78 @@
+1. Homepagina — Invoer blijft op dezelfde pagina
+
+De homepagina bevat:
+	•	Nummerveld met 1–80 invoer
+	•	UI-hulpen:
+	•	Enter → Nummer toevoegen
+	•	Backspace → Laatste verwijderen
+	•	0 → Klaar met invoeren
+	•	Deze moeten subtieler en cleaner vormgegeven worden.
+	•	Live invoervak moet:
+	•	Dubbele nummers blokkeren
+	•	Direct een subtiele waarschuwing tonen bij:
+	•	Dubbel nummer
+	•	Meer dan maximaal toegestane nummers
+	•	Foutmeldingen moeten subtiel, maar zichtbaar zijn (lichte rode rand / kleine tekst).
+
+⸻
+
+2. Scraper fix
+	•	Scraper mag niet meer falen en moet via:
+https://loten.nl/lucky-day/uitslag/[YYYY-MM-DD]
+	•	Scraper vult:
+	•	20 winnende nummers
+	•	Supernumber (indien aanwezig)
+	•	Caching van max 7 dagen om API-load te voorkomen.
+
+⸻
+
+3. Bonnen (per dag)
+	•	“Per dag” = Bonnen, niet rijen.
+	•	Een bon kan meerdere rijen bevatten.
+	•	Bonnen blijven zoals ze nu zijn.
+
+⸻
+
+4. Spelers
+	•	Spelers mogen geen dubbele namen hebben (server-side check).
+	•	Automatische detectie van spel op basis van aantal ingevulde nummers (bijv. 5 = 5-spel, 10 = 10-spel, etc.).
+	•	Bij invoer:
+	•	Alleen geselecteerde nummers tonen als blokjes
+	•	Geen volledig ingevulde nummerlijst
+	•	Groene blokjes = goed
+	•	Witte blokjes = fout
+	•	Automatische winstberekening per rij na invoer
+
+⸻
+
+5. Overzicht — totale winst, geen casino-tekst
+
+LET OP:
+Het dashboard moet alles goed scheiden, zonder ergens “casino” te noemen.
+
+Weekoverzicht moet bevatten:
+	1.	Per speler:
+	•	Inzet totaal
+	•	Winst totaal
+	•	Resultaat (positief/negatief)
+	2.	Voor de organisatie (stilzwijgend “casino”):
+	•	Wat moet worden uitbetaald
+	•	Wat binnenkomt
+	•	Eindsaldo (positief/negatief)
+	3.	Algemene balans:
+	•	Totaal ingezette bedragen
+	•	Totaal uitgekeerde bedragen
+	•	Totaal verschil
+	4.	Top 10 Winnaars (hoogste winst)
+	5.	Top 10 Verliezers (meest verlies)
+
+Layout moet helder, minimalistisch en professioneel zijn.
+
+⸻
+
+6. Extra eisen
+	•	Alle foutmeldingen fixen (zoals “bet NULL”).
+	•	UI consistent in nieuwe stijl.
+	•	Geen teksten over gok/casino/dobbel, maar functionaliteit blijft identiek.
+	•	Geen scraping fouten meer.
+	•	Startpagina opent altijd op vandaag, maar de gekozen datum moet zichtbaar zijn in de URL zodat de scraper juiste datum gebruikt.
