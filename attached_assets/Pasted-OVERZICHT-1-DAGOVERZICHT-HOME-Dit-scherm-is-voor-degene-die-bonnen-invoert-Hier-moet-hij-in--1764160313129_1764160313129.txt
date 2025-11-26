@@ -1,0 +1,93 @@
+OVERZICHT 1 – DAGOVERZICHT (HOME)
+
+Dit scherm is voor degene die bonnen invoert.
+Hier moet hij in één oogopslag zien of hij die dag geld verdient of geld moet betalen.
+
+Daarom moeten hier staan:
+	1.	Totaal aantal bonnen van die dag
+– Voor overzicht en controle.
+	2.	Totaal inzet van die dag
+– Zodat je kunt zien hoeveel er is gespeeld.
+	3.	Totaal uitbetaling van die dag
+– Nodig om de balans te berekenen.
+	4.	Dagbalans (uitbetaling – totale inzet)
+– Dit is de enige waarde die echt telt voor de teller.
+– Groen = teller krijgt geld.
+– Rood = teller moet betalen.
+	5.	Lijst met alle bonnen (samenvatting per bon)
+Per bon:
+– Klantnaam
+– Totaal inzet van die bon
+– Totaal winst/verlies van die bon
+– Kleur: groen (teller wint) of rood (teller verliest)
+
+Waarom:
+Dit is het snelste overzicht voor de teller om te zien hoe de dag loopt, zonder ruis.
+
+⸻
+
+OVERZICHT 2 – BONDETAIL POPUP (bij het klikken op een bon)
+
+Deze popup is puur voor controle van één bon.
+
+Hier moeten staan:
+	1.	Klantnaam
+	2.	Datum + bonnummer
+	3.	Alle rijen van de bon, en per rij:
+– De ingevoerde 10 nummers (of minder)
+– Aantal goed (hits)
+– Inzet
+– Uitbetaling op basis van het spel
+– Winst/verlies van die rij (uitbetaling – inzet)
+– Kleurindicatie per rij (groen of rood)
+	4.	Totaal van de hele bon
+– Optelsom van alle rijen
+– Groen of rood
+– Cruciaal voor de teller om te weten of hij moet betalen of krijgt
+
+Waarom:
+De teller moet rijen kunnen nakijken wanneer iemand vraagtekens heeft bij de uitslag.
+
+⸻
+
+OVERZICHT 3 – KLANTOVERZICHT (per klant die dag)
+
+Moet compact zijn, maar duidelijk.
+
+Per klant:
+	1.	Aantal bonnen van die klant
+	2.	Totaal inzet klant
+	3.	Totaal winst/verlies klant voor de teller
+– Groen = teller wint
+– Rood = teller verliest
+
+Waarom:
+De teller moet kunnen zien welke klanten hem geld kosten of opleveren.
+
+⸻
+
+OVERZICHT 4 – RIJRESULTAAT (interne berekening, niet per se tonen)
+
+Voor elke geïmporteerde of ingevoerde rij berekent het systeem:
+	1.	Aantal ingevoerde nummers (bepaalt spelsoort automatisch)
+	2.	Aantal goed
+	3.	Inzet
+	4.	Uitbetaling volgens spelregels
+	5.	Winst/verlies van die rij
+
+Waarom:
+Nodig voor correcte berekening van bon → klant → dag.
+
+⸻
+
+KERNWAARDES (deze zijn cruciaal)
+
+Om alles te laten kloppen moet je altijd hebben:
+	1.	inzet_per_rij
+	2.	uitbetaling_per_rij
+	3.	winst_of_verlies_per_rij
+	4.	totaal_per_bon
+	5.	totaal_per_klant
+	6.	totaal_van_de_dag
+
+De teller verdient of verliest alleen op basis van wélk bedrag er moet worden uitbetaald tegenover de inzet. Daarom staan deze waardes centraal. en bon met datum ernaast moet weg, hier moet gewoon groot de naam van de speler komen

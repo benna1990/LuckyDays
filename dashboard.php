@@ -108,25 +108,27 @@ $hasWinningNumbers = !empty($winningData);
                         <?php foreach ($bonnen as $bon): 
                             $saldo = floatval($bon['total_winnings']) - floatval($bon['total_bet']);
                         ?>
-                            <a href="bon.php?id=<?= $bon['id'] ?>" class="block p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition group">
+                            <div onclick="openBonPopup(<?= $bon['id'] ?>)" class="cursor-pointer p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition group">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium" style="background: <?= htmlspecialchars($bon['player_color']) ?>">
+                                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold" style="background: <?= htmlspecialchars($bon['player_color']) ?>">
                                             <?= strtoupper(substr($bon['player_name'], 0, 1)) ?>
                                         </div>
                                         <div>
-                                            <div class="font-medium text-gray-800"><?= htmlspecialchars($bon['name']) ?></div>
-                                            <div class="text-sm text-gray-500"><?= htmlspecialchars($bon['player_name']) ?> · <?= $bon['rijen_count'] ?> rij<?= $bon['rijen_count'] != 1 ? 'en' : '' ?></div>
+                                            <div class="text-lg font-semibold text-gray-800"><?= htmlspecialchars($bon['player_name']) ?></div>
+                                            <div class="text-sm text-gray-500"><?= $bon['rijen_count'] ?> rij<?= $bon['rijen_count'] != 1 ? 'en' : '' ?> · Inzet €<?= number_format($bon['total_bet'], 2, ',', '.') ?></div>
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <div class="text-sm text-gray-500">Inzet: €<?= number_format($bon['total_bet'], 2, ',', '.') ?></div>
-                                        <div class="font-medium <?= $saldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
+                                        <div class="text-2xl font-bold <?= $saldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
                                             <?= $saldo >= 0 ? '+' : '' ?>€<?= number_format($saldo, 2, ',', '.') ?>
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                            <?= $saldo > 0 ? 'Krijgt' : ($saldo < 0 ? 'Betaalt' : 'Quitte') ?>
                                         </div>
                                     </div>
                                 </div>
-                            </a>
+                            </div>
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
@@ -152,7 +154,7 @@ $hasWinningNumbers = !empty($winningData);
                             <span class="font-medium">€<?= number_format($dayStats['total_bet'], 2, ',', '.') ?></span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-gray-600">Totale winst</span>
+                            <span class="text-gray-600">Uitbetaling</span>
                             <span class="font-medium">€<?= number_format($dayStats['total_winnings'], 2, ',', '.') ?></span>
                         </div>
                         <hr class="border-gray-100">
@@ -191,12 +193,9 @@ $hasWinningNumbers = !empty($winningData);
         </div>
 
         <div class="card p-6">
-            <button onclick="togglePlayers()" class="w-full flex items-center justify-between text-left">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Spelers van vandaag</h3>
-                <svg id="players-chevron" class="w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-            </button>
+            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-4">Klantoverzicht</h3>
             
-            <div id="players-list" class="hidden mt-4">
+            <div id="players-list" class="">
                 <?php 
                 $playerStats = getPlayerDayStats($conn, $selected_date);
                 if (empty($playerStats) || $playerStats === false): 
@@ -206,23 +205,24 @@ $hasWinningNumbers = !empty($winningData);
                     <div class="space-y-2">
                         <?php foreach ($playerStats as $player): 
                             $playerSaldo = floatval($player['saldo']);
+                            $playerBet = floatval($player['total_bet'] ?? 0);
                         ?>
-                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium" style="background: <?= htmlspecialchars($player['color']) ?>">
+                                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold" style="background: <?= htmlspecialchars($player['color']) ?>">
                                         <?= strtoupper(substr($player['name'], 0, 1)) ?>
                                     </div>
                                     <div>
-                                        <div class="font-medium text-gray-800"><?= htmlspecialchars($player['name']) ?></div>
-                                        <div class="text-xs text-gray-500"><?= $player['total_bons'] ?> bon<?= $player['total_bons'] != 1 ? 'nen' : '' ?>, <?= $player['total_rijen'] ?> rij<?= $player['total_rijen'] != 1 ? 'en' : '' ?></div>
+                                        <div class="font-semibold text-gray-800"><?= htmlspecialchars($player['name']) ?></div>
+                                        <div class="text-xs text-gray-500"><?= $player['total_bons'] ?> bon<?= $player['total_bons'] != 1 ? 'nen' : '' ?> · Inzet €<?= number_format($playerBet, 2, ',', '.') ?></div>
                                     </div>
                                 </div>
                                 <div class="text-right">
-                                    <div class="font-medium <?= $playerSaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
+                                    <div class="text-xl font-bold <?= $playerSaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
                                         <?= $playerSaldo >= 0 ? '+' : '' ?>€<?= number_format($playerSaldo, 2, ',', '.') ?>
                                     </div>
                                     <div class="text-xs text-gray-500">
-                                        <?= $playerSaldo > 0 ? 'Krijgt geld' : ($playerSaldo < 0 ? 'Moet betalen' : 'Quitte') ?>
+                                        <?= $playerSaldo > 0 ? 'Krijgt' : ($playerSaldo < 0 ? 'Betaalt' : 'Quitte') ?>
                                     </div>
                                 </div>
                             </div>
@@ -289,6 +289,10 @@ $hasWinningNumbers = !empty($winningData);
                     </div>
                 </div>
                 <p class="text-xs text-gray-400 text-center">OK/Enter = opslaan en volgende rij</p>
+            </div>
+
+            <div id="bon-detail-popup" class="hidden">
+                <div id="bon-detail-content"></div>
             </div>
         </div>
     </div>
@@ -417,6 +421,164 @@ $hasWinningNumbers = !empty($winningData);
         function hidePopup() {
             document.getElementById('popup-overlay').classList.add('hidden');
             document.getElementById('popup-overlay').classList.remove('flex');
+        }
+
+        async function openBonPopup(bonId) {
+            try {
+                const response = await fetch(`api/get_bon.php?id=${bonId}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    alert(data.error || 'Kon bon niet laden');
+                    return;
+                }
+                
+                const bon = data.bon;
+                const rijen = data.rijen;
+                const winNums = data.winning_numbers;
+                const totals = data.totals;
+                const hasPending = winNums.length === 0;
+                
+                let rijenHtml = rijen.map((rij, i) => {
+                    const saldo = rij.saldo;
+                    return `
+                        <div class="p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs text-gray-500">Rij ${i + 1}</span>
+                                <div class="flex items-center gap-2">
+                                    ${hasPending 
+                                        ? '<span class="text-xs font-medium text-amber-600">In afwachting</span>'
+                                        : `<span class="text-xs font-medium ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
+                                    }
+                                    <button onclick="deleteRijFromPopup(${rij.id})" class="text-gray-400 hover:text-red-500 transition">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-1 mb-2">
+                                ${rij.numbers.map(n => {
+                                    const isMatch = winNums.includes(n);
+                                    const cls = hasPending ? 'bg-amber-100 text-amber-700' : (isMatch ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500');
+                                    return `<span class="w-7 h-7 flex items-center justify-center text-xs font-medium ${cls} rounded">${n}</span>`;
+                                }).join('')}
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                Inzet: €${rij.bet.toFixed(2)}${!hasPending ? ` · ${rij.matches} goed${rij.multiplier > 0 ? ` · ${rij.multiplier}x · €${rij.winnings.toFixed(2)}` : ''}` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                const saldo = totals.saldo;
+                const content = `
+                    <div class="text-center mb-4">
+                        <div class="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3" style="background: ${bon.player_color}">
+                            ${bon.player_name.charAt(0).toUpperCase()}
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-800">${escapeHtml(bon.player_name)}</h3>
+                        <p class="text-sm text-gray-500">${rijen.length} rij${rijen.length !== 1 ? 'en' : ''}</p>
+                    </div>
+                    
+                    ${winNums.length > 0 ? `
+                        <div class="mb-4 p-3 bg-emerald-50 rounded-xl">
+                            <p class="text-xs text-emerald-600 font-medium mb-2 text-center">Winnende nummers</p>
+                            <div class="flex flex-wrap gap-1 justify-center">
+                                ${winNums.map(n => `<span class="w-6 h-6 flex items-center justify-center text-xs font-medium bg-emerald-100 text-emerald-700 rounded">${n}</span>`).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                        ${rijenHtml || '<p class="text-center text-gray-400 py-4">Geen rijen</p>'}
+                    </div>
+                    
+                    <div class="bg-gray-100 rounded-xl p-4 mb-4">
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-gray-600">Totale inzet</span>
+                            <span class="font-medium">€${totals.bet.toFixed(2)}</span>
+                        </div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="text-gray-600">Uitbetaling</span>
+                            <span class="font-medium">€${totals.winnings.toFixed(2)}</span>
+                        </div>
+                        <hr class="border-gray-200 my-2">
+                        <div class="flex justify-between">
+                            <span class="font-semibold text-gray-800">Saldo</span>
+                            ${hasPending 
+                                ? '<span class="font-bold text-lg text-amber-600">In afwachting</span>'
+                                : `<span class="font-bold text-lg ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
+                            }
+                        </div>
+                        ${!hasPending ? `
+                            <div class="text-center text-xs mt-2 ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">
+                                ${saldo > 0 ? 'Je krijgt geld' : (saldo < 0 ? 'Je moet betalen' : 'Quitte')}
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <a href="bon.php?id=${bon.id}" class="flex-1 py-3 text-center text-sm font-medium text-emerald-600 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition">
+                            Bewerken
+                        </a>
+                        <button onclick="deleteBonFromPopup(${bon.id})" class="flex-1 py-3 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
+                            Verwijderen
+                        </button>
+                    </div>
+                `;
+                
+                document.getElementById('bon-detail-content').innerHTML = content;
+                showPopup('bon-detail-popup');
+                
+            } catch (error) {
+                alert('Fout bij laden bon');
+                console.error(error);
+            }
+        }
+
+        async function deleteRijFromPopup(rijId) {
+            if (!confirm('Rij verwijderen?')) return;
+            
+            try {
+                const formData = new FormData();
+                formData.append('rij_id', rijId);
+                
+                const response = await fetch('api/delete_rij.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.error || 'Fout bij verwijderen');
+                }
+            } catch (e) {
+                alert('Fout bij verwijderen');
+            }
+        }
+
+        async function deleteBonFromPopup(bonId) {
+            if (!confirm('Bon verwijderen? Alle rijen worden ook verwijderd.')) return;
+            
+            try {
+                const formData = new FormData();
+                formData.append('bon_id', bonId);
+                
+                const response = await fetch('api/delete_bon.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.error || 'Fout bij verwijderen');
+                }
+            } catch (e) {
+                alert('Fout bij verwijderen');
+            }
         }
 
         function startNewBon() {
