@@ -1,15 +1,15 @@
 # Lucky Day Lottery Tracker
 
 ## Overview
-Modern webapp voor Lucky Day bonnenadministratie met volledig toetsenbord-gestuurde invoer:
+Modern webapp voor Lucky Day bonnenadministratie met popup-gebaseerde invoer:
 - Dag bevat bonnen, bon bevat rijen
-- Visueel numeriek toetsenbord (sticky onderaan)
-- Live validatie met subtiele waarschuwingen
+- Popup-invoer voor naam en nummers (geen visueel toetsenbord)
+- Live speler filtering en automatische aanmaak
 - Automatische spelbepaling op basis van aantal nummers
 - Per rij eigen inzet en automatische winstberekening
 - Winnende nummers highlighten (groen = goed, wit = fout)
 - Responsive, minimalistisch Tailwind design
-- Unieke spelernamen verplicht
+- Unieke automatische kleuren voor nieuwe spelers
 
 ## Tech Stack
 - **Backend**: PHP 8.2 met PostgreSQL
@@ -34,8 +34,8 @@ admins (id, username, password, role)
 ```
 /
 ├── index.php           # Login page
-├── dashboard.php       # Main dashboard - day overview (redirects to ?date=today)
-├── bon.php             # Bon detail with visual keyboard input
+├── dashboard.php       # Main dashboard - popup-based bon creation
+├── bon.php             # Bon detail - popup-based rij creation
 ├── beheer.php          # Admin page (players + bons)
 ├── weekoverzicht.php   # Week overview with stats, top 10, CSV export
 ├── logout.php          # Session logout
@@ -43,35 +43,42 @@ admins (id, username, password, role)
 ├── functions.php       # Helper functions + all database queries
 ├── scraper.js          # Puppeteer-based scraper (loten.nl)
 ├── api/
-│   ├── create_bon.php  # Create bon (auto-creates player if needed)
-│   ├── add_rij.php     # Add rij to bon
-│   ├── delete_rij.php  # Delete rij
-│   ├── delete_bon.php  # Delete bon
+│   ├── create_bon.php    # Create bon (JSON + form support)
+│   ├── create_player.php # Create player with auto-color
+│   ├── add_rij.php       # Add rij to bon
+│   ├── delete_rij.php    # Delete rij
+│   ├── delete_bon.php    # Delete bon
 │   └── scrape_numbers.php  # Fetch winning numbers
 ```
 
 ## Key Features
 
-### 1. Visual Numeric Keyboard (bon.php)
-- Sticky keyboard at bottom of screen
-- Large touch-friendly buttons (0-9)
-- Live input display with count (0/10)
-- Duplicate number blocking with warning
-- Auto-add number after 2 digits entered
-- Special buttons: + (add), OK (finish), ← (remove last), C (clear)
+### 1. Popup-Based Input Flow (dashboard.php)
+**Naam invoer:**
+1. Klik "Nieuwe bon" - opent naam popup
+2. Typ naam - live filtering van bestaande spelers
+3. Enter: selecteert bestaande OF maakt nieuwe speler met auto-kleur
+4. Lege Enter: sluit popup
 
-### 2. Number Entry Workflow
-1. Tap numbers on keyboard
-2. Numbers appear as chips (green if winning, white if not)
-3. Press OK when done with numbers
-4. Adjust bet amount with +/- buttons
-5. Save rij
+**Nummer invoer:**
+1. Na naam opent automatisch nummer popup
+2. Typ nummer, Enter = toevoegen aan rij
+3. 0 of lege Enter = ga naar inzet
+
+**Inzet invoer:**
+1. Typ inzet, Enter = opslaan en nieuwe rij
+2. Bij nieuwe rij: 0 als eerste nummer = bon klaar, terug naar dashboard
+
+### 2. Rij invoer op bon.php
+- Klik "Nieuwe rij" - opent nummer popup
+- Zelfde flow als dashboard: typ nummers, 0 = naar inzet, Enter = opslaan
 
 ### 3. Scraper (loten.nl)
 - **Source**: `https://www.loten.nl/luckyday/`
 - Scrapes by matching Dutch date format
 - Returns 20 winning numbers + bonus number
-- Caches results in database
+- Automatic retry every 10 seconds on failure
+- Shows "Scraper tijdelijk niet beschikbaar" on error
 
 ### 4. Automatic Game Type Detection
 - 1-10 numbers = 1-getallen to 10-getallen
@@ -91,20 +98,24 @@ admins (id, username, password, role)
 10-getallen: 10 goed = 300000x, 9 goed = 4000x, 8 goed = 200x, 7 goed = 20x, 6 goed = 5x, 5 goed = 2x
 ```
 
+### 6. Auto Color Generation
+- New players automatically get unique colors
+- 20 predefined colors, then random hex if all used
+
 ## UI Pages
 
 ### Dashboard
-- Redirects to ?date=today (date always in URL for scraper)
 - Date navigation (13 days)
+- Popup-based new bon flow
 - Bonnen list with player, rijen count, saldo
 - Day stats (totaal inzet, winst, saldo)
-- Winning numbers with fetch button
+- Winning numbers with fetch button + auto retry
 - Collapsible "Spelers van vandaag"
 
 ### Bon Detail (bon.php)
 - Player info header with saldo
 - Winning numbers display
-- Visual keyboard input system
+- Popup-based rij creation
 - Number chips (groen = match, wit = geen match, geel = pending)
 - Rijen list with win/loss highlighting
 - Totals summary
@@ -115,27 +126,23 @@ admins (id, username, password, role)
 - Te betalen / Te ontvangen van spelers
 - Top 10 Winnaars
 - Top 10 Verliezers
-- Alle spelers tabel met saldo/status
 - CSV export
-- Per-dag breakdown
 
 ## Design Rules
-- No "casino" terminology anywhere
 - Days contain bonnen
 - Bonnen contain rijen
 - Players must have unique names
-- Subtle warnings (no pop-ups)
+- Subtle popup-based input (no visual keyboard)
 - Green = winning, White = not winning, Yellow = pending
 
 ## Recent Changes (Nov 26, 2025)
-- Visual numeric keyboard instead of text input
-- Scraper now uses loten.nl (more reliable)
-- Updated multipliers to official values
-- Dashboard always has date in URL
-- Weekoverzicht with Top 10 winnaars/verliezers
-- Organization balance (te betalen / te ontvangen)
-- Duplicate number blocking with subtle warnings
-- Bon creation with typed player name (auto-creates)
+- Replaced visual keyboard with popup-based input
+- New name popup with live player filtering
+- Number popup: typ + Enter flow
+- 0 triggers bet input, 0 as first number = bon complete
+- Scraper auto-retry on failure
+- Auto-color generation for new players
+- Simplified bon.php (removed 350+ lines of keyboard code)
 
 ## Development Notes
 - Session: `$_SESSION['admin_logged_in']`

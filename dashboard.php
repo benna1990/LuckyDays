@@ -40,7 +40,20 @@ $hasWinningNumbers = !empty($winningData);
         .date-btn { transition: all 0.15s ease; }
         .date-btn:hover { background: #f3f4f6; }
         .date-btn.active { background: #10b981; color: white; }
-        .kbd { display: inline-flex; align-items: center; padding: 2px 6px; font-size: 11px; font-weight: 500; color: #374151; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; font-family: ui-monospace, monospace; }
+        .modal-overlay { backdrop-filter: blur(4px); }
+        .popup-input { font-size: 24px; text-align: center; letter-spacing: 2px; }
+        .number-chip { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+        .number-chip.match { background: #d1fae5; color: #065f46; }
+        .number-chip.no-match { background: #f3f4f6; color: #6b7280; }
+        .number-chip.pending { background: #fef3c7; color: #92400e; }
+        .player-suggestion { transition: background 0.1s; }
+        .player-suggestion:hover, .player-suggestion.selected { background: #f0fdf4; }
+        .scraper-status { font-size: 12px; padding: 4px 8px; border-radius: 6px; }
+        .scraper-status.loading { background: #fef3c7; color: #92400e; }
+        .scraper-status.error { background: #fee2e2; color: #991b1b; }
+        .scraper-status.success { background: #d1fae5; color: #065f46; }
+        .fade-in { animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -74,7 +87,7 @@ $hasWinningNumbers = !empty($winningData);
             <div class="lg:col-span-2 card p-6">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-lg font-semibold text-gray-800">Bonnen van <?= getDayAndAbbreviatedMonth($selected_date) ?></h2>
-                    <button onclick="openNewBonModal()" class="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 transition">
+                    <button onclick="startNewBon()" class="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 transition">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         Nieuwe bon
                     </button>
@@ -150,9 +163,12 @@ $hasWinningNumbers = !empty($winningData);
                 <div class="card p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Winnende nummers</h3>
-                        <button onclick="fetchWinningNumbers()" class="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
-                            Ophalen
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <span id="scraper-status" class="scraper-status hidden"></span>
+                            <button onclick="fetchWinningNumbers()" id="fetch-btn" class="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                                Ophalen
+                            </button>
+                        </div>
                     </div>
                     <div id="winning-numbers-container">
                         <?php if ($hasWinningNumbers): ?>
@@ -212,37 +228,51 @@ $hasWinningNumbers = !empty($winningData);
         </div>
     </main>
 
-    <div id="new-bon-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-800">Nieuwe bon</h3>
-                <button onclick="closeNewBonModal()" class="text-gray-400 hover:text-gray-600">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
+    <div id="popup-overlay" class="fixed inset-0 bg-black/50 modal-overlay hidden items-center justify-center z-50">
+        <div id="popup-content" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 fade-in">
+            <div id="name-popup" class="hidden">
+                <div class="text-center mb-6">
+                    <h3 class="text-lg font-semibold text-gray-800">Spelernaam</h3>
+                    <p class="text-sm text-gray-500 mt-1">Typ naam en druk Enter</p>
+                </div>
+                <input type="text" id="name-input" class="w-full px-4 py-4 text-xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="Naam..." autocomplete="off">
+                <div id="player-suggestions" class="mt-3 max-h-48 overflow-y-auto hidden"></div>
+                <p class="text-xs text-gray-400 text-center mt-4">Enter = selecteren/aanmaken · Leeg + Enter = sluiten</p>
             </div>
-            
-            <form action="api/create_bon.php" method="POST">
-                <input type="hidden" name="date" value="<?= $selected_date ?>">
-                
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Spelernaam</label>
-                    <input type="text" name="player_name" required placeholder="Typ de naam van de speler" class="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500" autocomplete="off">
+
+            <div id="number-popup" class="hidden">
+                <div class="text-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800" id="popup-player-name"></h3>
+                    <p class="text-sm text-gray-500">Rij <span id="current-row-num">1</span></p>
                 </div>
-                
-                <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Naam (optioneel)</label>
-                    <input type="text" name="name" placeholder="Bijv. Avond bon" class="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500">
+                <div id="current-numbers" class="flex flex-wrap gap-2 justify-center min-h-[44px] mb-4"></div>
+                <input type="text" id="number-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="Nummer..." autocomplete="off" inputmode="numeric">
+                <p class="text-xs text-gray-400 text-center mt-4">Enter = toevoegen · 0 = naar inzet</p>
+            </div>
+
+            <div id="bet-popup" class="hidden">
+                <div class="text-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">Inzet voor rij <span id="bet-row-num">1</span></h3>
+                    <div id="bet-numbers-display" class="flex flex-wrap gap-1.5 justify-center mt-3"></div>
                 </div>
-                
-                <div class="flex gap-3">
-                    <button type="button" onclick="closeNewBonModal()" class="flex-1 px-4 py-3 text-gray-700 font-medium bg-gray-100 rounded-xl hover:bg-gray-200 transition">Annuleren</button>
-                    <button type="submit" class="flex-1 px-4 py-3 text-white font-medium bg-emerald-500 rounded-xl hover:bg-emerald-600 transition">Aanmaken</button>
-                </div>
-            </form>
+                <input type="text" id="bet-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="decimal">
+                <p class="text-xs text-gray-400 text-center mt-4">Enter = opslaan en volgende rij</p>
+            </div>
         </div>
     </div>
 
     <script>
+        const selectedDate = '<?= $selected_date ?>';
+        const allPlayers = <?= json_encode($allPlayers ?: []) ?>;
+        const winningNumbers = <?= json_encode($winningData ? array_map('intval', $winningData) : []) ?>;
+        
+        let currentBonId = null;
+        let currentPlayerId = null;
+        let currentPlayerName = '';
+        let currentNumbers = [];
+        let currentRowNum = 1;
+        let scraperRetryInterval = null;
+
         function togglePlayers() {
             const list = document.getElementById('players-list');
             const chevron = document.getElementById('players-chevron');
@@ -250,42 +280,332 @@ $hasWinningNumbers = !empty($winningData);
             chevron.classList.toggle('rotate-180');
         }
 
-        function openNewBonModal() {
-            document.getElementById('new-bon-modal').classList.remove('hidden');
-            document.getElementById('new-bon-modal').classList.add('flex');
+        function showPopup(popupId) {
+            document.getElementById('popup-overlay').classList.remove('hidden');
+            document.getElementById('popup-overlay').classList.add('flex');
+            document.querySelectorAll('#popup-content > div').forEach(el => el.classList.add('hidden'));
+            document.getElementById(popupId).classList.remove('hidden');
         }
 
-        function closeNewBonModal() {
-            document.getElementById('new-bon-modal').classList.add('hidden');
-            document.getElementById('new-bon-modal').classList.remove('flex');
+        function hidePopup() {
+            document.getElementById('popup-overlay').classList.add('hidden');
+            document.getElementById('popup-overlay').classList.remove('flex');
         }
 
-        async function fetchWinningNumbers() {
+        function startNewBon() {
+            currentBonId = null;
+            currentPlayerId = null;
+            currentPlayerName = '';
+            currentNumbers = [];
+            currentRowNum = 1;
+            
+            showPopup('name-popup');
+            const nameInput = document.getElementById('name-input');
+            nameInput.value = '';
+            nameInput.focus();
+            updatePlayerSuggestions('');
+        }
+
+        function updatePlayerSuggestions(query) {
+            const container = document.getElementById('player-suggestions');
+            const q = query.toLowerCase().trim();
+            
+            if (!q) {
+                container.classList.add('hidden');
+                return;
+            }
+            
+            const matches = allPlayers.filter(p => p.name.toLowerCase().includes(q));
+            
+            if (matches.length === 0) {
+                container.innerHTML = `<div class="p-3 text-sm text-gray-500 text-center">Nieuwe speler: <strong>${escapeHtml(query)}</strong></div>`;
+            } else {
+                container.innerHTML = matches.map((p, i) => `
+                    <div class="player-suggestion p-3 rounded-lg cursor-pointer flex items-center gap-3 ${i === 0 ? 'selected' : ''}" data-id="${p.id}" data-name="${escapeHtml(p.name)}">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium" style="background: ${p.color}">
+                            ${p.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span class="font-medium text-gray-800">${escapeHtml(p.name)}</span>
+                    </div>
+                `).join('');
+            }
+            
+            container.classList.remove('hidden');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.getElementById('name-input').addEventListener('input', function() {
+            updatePlayerSuggestions(this.value);
+        });
+
+        document.getElementById('name-input').addEventListener('keydown', async function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const name = this.value.trim();
+                
+                if (!name) {
+                    hidePopup();
+                    return;
+                }
+                
+                const existingPlayer = allPlayers.find(p => p.name.toLowerCase() === name.toLowerCase());
+                
+                if (existingPlayer) {
+                    currentPlayerId = existingPlayer.id;
+                    currentPlayerName = existingPlayer.name;
+                } else {
+                    const response = await fetch('api/create_player.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: name })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        currentPlayerId = data.id;
+                        currentPlayerName = name;
+                        allPlayers.push({ id: data.id, name: name, color: data.color });
+                    } else {
+                        alert(data.error || 'Kon speler niet aanmaken');
+                        return;
+                    }
+                }
+                
+                const bonResponse = await fetch('api/create_bon.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player_id: currentPlayerId, date: selectedDate })
+                });
+                const bonData = await bonResponse.json();
+                
+                if (bonData.success) {
+                    currentBonId = bonData.id;
+                    startNumberEntry();
+                } else {
+                    alert(bonData.error || 'Kon bon niet aanmaken');
+                }
+            }
+        });
+
+        function startNumberEntry() {
+            currentNumbers = [];
+            showPopup('number-popup');
+            document.getElementById('popup-player-name').textContent = currentPlayerName;
+            document.getElementById('current-row-num').textContent = currentRowNum;
+            renderCurrentNumbers();
+            const input = document.getElementById('number-input');
+            input.value = '';
+            input.focus();
+        }
+
+        function renderCurrentNumbers() {
+            const container = document.getElementById('current-numbers');
+            if (currentNumbers.length === 0) {
+                container.innerHTML = '<span class="text-sm text-gray-400">Voer nummers in...</span>';
+                return;
+            }
+            
+            container.innerHTML = currentNumbers.map(num => {
+                const isMatch = winningNumbers.includes(num);
+                const chipClass = winningNumbers.length > 0 ? (isMatch ? 'match' : 'no-match') : 'pending';
+                return `<span class="number-chip ${chipClass}">${num}</span>`;
+            }).join('');
+        }
+
+        document.getElementById('number-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = this.value.trim();
+                
+                if (val === '0' || val === '') {
+                    if (currentNumbers.length > 0) {
+                        goToBetEntry();
+                    }
+                    return;
+                }
+                
+                const num = parseInt(val);
+                if (isNaN(num) || num < 1 || num > 80) {
+                    this.value = '';
+                    return;
+                }
+                
+                if (currentNumbers.includes(num)) {
+                    this.value = '';
+                    return;
+                }
+                
+                if (currentNumbers.length >= 10) {
+                    this.value = '';
+                    return;
+                }
+                
+                currentNumbers.push(num);
+                renderCurrentNumbers();
+                this.value = '';
+            }
+        });
+
+        function goToBetEntry() {
+            showPopup('bet-popup');
+            document.getElementById('bet-row-num').textContent = currentRowNum;
+            
+            const display = document.getElementById('bet-numbers-display');
+            display.innerHTML = currentNumbers.map(num => {
+                const isMatch = winningNumbers.includes(num);
+                const chipClass = winningNumbers.length > 0 ? (isMatch ? 'match' : 'no-match') : 'pending';
+                return `<span class="number-chip ${chipClass}" style="width:28px;height:28px;font-size:12px;">${num}</span>`;
+            }).join('');
+            
+            const input = document.getElementById('bet-input');
+            input.value = '1.00';
+            input.focus();
+            input.select();
+        }
+
+        document.getElementById('bet-input').addEventListener('keydown', async function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                let bet = parseFloat(this.value.replace(',', '.'));
+                if (isNaN(bet) || bet < 0.50) bet = 1.00;
+                
+                const response = await fetch('api/add_rij.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `bon_id=${currentBonId}&numbers=${currentNumbers.join(',')}&bet=${bet}`
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentRowNum++;
+                    currentNumbers = [];
+                    startNextRow();
+                } else {
+                    alert(data.error || 'Kon rij niet opslaan');
+                }
+            }
+        });
+
+        function startNextRow() {
+            showPopup('number-popup');
+            document.getElementById('current-row-num').textContent = currentRowNum;
+            renderCurrentNumbers();
+            const input = document.getElementById('number-input');
+            input.value = '';
+            input.focus();
+            
+            input.removeEventListener('keydown', checkFirstZero);
+            input.addEventListener('keydown', checkFirstZero);
+        }
+
+        function checkFirstZero(e) {
+            if (e.key === 'Enter') {
+                const val = this.value.trim();
+                if (val === '0' && currentNumbers.length === 0) {
+                    e.preventDefault();
+                    finishBon();
+                    this.removeEventListener('keydown', checkFirstZero);
+                }
+            }
+        }
+
+        function finishBon() {
+            hidePopup();
+            location.reload();
+        }
+
+        document.getElementById('popup-overlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                if (currentBonId && currentNumbers.length === 0) {
+                    finishBon();
+                } else {
+                    hidePopup();
+                }
+            }
+        });
+
+        let scraperRetrying = false;
+        async function fetchWinningNumbers(isRetry = false) {
             const container = document.getElementById('winning-numbers-container');
-            container.innerHTML = '<p class="text-sm text-gray-400">Ophalen...</p>';
+            const statusEl = document.getElementById('scraper-status');
+            const fetchBtn = document.getElementById('fetch-btn');
+            
+            if (!isRetry) {
+                container.innerHTML = '<p class="text-sm text-gray-400">Ophalen...</p>';
+            }
+            statusEl.classList.remove('hidden', 'error', 'success');
+            statusEl.classList.add('loading');
+            statusEl.textContent = 'Bezig...';
+            fetchBtn.disabled = true;
             
             try {
-                const response = await fetch('api/scrape_numbers.php?date=<?= $selected_date ?>');
+                const response = await fetch('api/scrape_numbers.php?date=' + selectedDate);
                 const data = await response.json();
                 
                 if (data.success && data.numbers) {
+                    statusEl.classList.remove('loading');
+                    statusEl.classList.add('success');
+                    statusEl.textContent = 'Gelukt!';
+                    stopScraperRetry();
+                    
                     let html = '<div class="flex flex-wrap gap-1.5">';
                     data.numbers.forEach(num => {
                         html += `<span class="w-7 h-7 flex items-center justify-center text-xs font-medium bg-emerald-100 text-emerald-700 rounded-md">${num}</span>`;
                     });
                     html += '</div>';
                     container.innerHTML = html;
-                    location.reload();
+                    
+                    setTimeout(() => location.reload(), 1000);
                 } else {
-                    container.innerHTML = `<p class="text-sm text-red-500">${data.error || 'Kon nummers niet ophalen'}</p>`;
+                    throw new Error(data.error || 'Kon nummers niet ophalen');
                 }
             } catch (e) {
-                container.innerHTML = '<p class="text-sm text-red-500">Fout bij ophalen</p>';
+                statusEl.classList.remove('loading');
+                statusEl.classList.add('error');
+                statusEl.textContent = 'Tijdelijk niet beschikbaar';
+                
+                if (!isRetry) {
+                    container.innerHTML = '<p class="text-sm text-amber-600">Scraper tijdelijk niet beschikbaar</p>';
+                }
+                
+                startScraperRetry();
+            }
+            
+            fetchBtn.disabled = false;
+        }
+
+        function startScraperRetry() {
+            if (scraperRetrying) return;
+            scraperRetrying = true;
+            
+            scraperRetryInterval = setInterval(() => {
+                fetchWinningNumbers(true);
+            }, 10000);
+        }
+
+        function stopScraperRetry() {
+            scraperRetrying = false;
+            if (scraperRetryInterval) {
+                clearInterval(scraperRetryInterval);
+                scraperRetryInterval = null;
             }
         }
 
-        document.getElementById('new-bon-modal').addEventListener('click', function(e) {
-            if (e.target === this) closeNewBonModal();
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const overlay = document.getElementById('popup-overlay');
+                if (!overlay.classList.contains('hidden')) {
+                    if (currentBonId && currentNumbers.length === 0) {
+                        finishBon();
+                    } else {
+                        hidePopup();
+                    }
+                }
+            }
         });
     </script>
 </body>

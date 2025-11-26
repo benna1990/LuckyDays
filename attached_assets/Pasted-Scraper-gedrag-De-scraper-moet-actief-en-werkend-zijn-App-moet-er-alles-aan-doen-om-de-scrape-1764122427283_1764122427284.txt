@@ -1,0 +1,69 @@
+Scraper gedrag
+	•	De scraper moet actief en werkend zijn.
+	•	App moet er alles aan doen om de scraper automatisch te laten functioneren:
+	•	Correcte URL per datum gebruiken.
+	•	Fallback selectors proberen.
+	•	Eventueel alternatieve methode via loten.nl gebruiken.
+	•	Als de scraper op dat moment geen gegevens kan ophalen:
+	•	Toon de melding: “Scraper tijdelijk niet beschikbaar”
+	•	Maar blijf het op de achtergrond elke paar seconden opnieuw proberen totdat het wel werkt.
+
+⸻
+
+Home-pagina workflow
+
+1. Naam invoer (via pop-up)
+	•	Bij elke nieuwe bon opent een pop-up.
+	•	Gebruiker typt de naam, filtering gebeurt live.
+	•	Druk op Enter:
+	•	Als speler bestaat → selecteer speler.
+	•	Als speler niet bestaat → maak automatisch nieuwe speler aan.
+	•	Automatisch een unieke kleur toewijzen.
+	•	Als Enter wordt gedrukt terwijl het veld leeg is → pop-up sluiten.
+
+⸻
+
+2. Nummerinvoer (via pop-up, géén UI-toetsenbord meer)
+	•	Direct na de naam opent de pop-up voor nummerinvoer.
+	•	De gebruiker typt gewoon → Enter:
+	•	Nummer verschijnt in een rij.
+	•	Valide nummers krijgen een subtiel kleuraccent.
+	•	Niet-ingevulde posities blijven wit.
+
+⸻
+
+3. Automatische spel-logica voor bonnen
+
+Rij-invoer
+	•	Je voert nummers in → Enter.
+	•	Wanneer je 0 invoert:
+	•	App gaat automatisch naar inzet-invoer voor die rij.
+
+Na inzet
+	•	Druk Enter → automatisch naar een nieuwe rij.
+
+Bon klaar
+	•	Als het eerste nummer van een nieuwe rij 0 is:
+	•	Bon wordt automatisch afgesloten.
+	•	App springt simpel terug naar naam-invoer voor een nieuwe speler.
+	•	Hele flow begint opnieuw.
+
+⸻
+
+4. Pop-up sluitregels
+
+Naam-invoer:
+	•	Enter zonder tekst → invoer klaar → pop-up sluit.
+
+Nummerinvoer:
+	•	Alleen sluiten wanneer bon officieel klaar is (zie logica hierboven).
+
+⸻
+
+5. Overige eisen
+	•	Geen UI-toetsenbord meer, alles gebeurt via pop-up typ-invoer.
+	•	Nummers worden op de pagina getoond in nette rijen.
+	•	Correcte nummers worden subtiel gekleurd.
+	•	Spelers krijgen bij aanmaken een automatisch gegenereerde unieke kleur.
+	•	De tool werkt primair voor een casino–omgeving (geen tekst “casino” in UI, alleen in prompt bedoeld).
+	•	De scraper moet automatisch de juiste datum ophalen op basis van de datum die in de app geselecteerd is.

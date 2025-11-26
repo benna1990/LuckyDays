@@ -138,6 +138,32 @@ function calculateWinnings($numbers, $winningNumbers, $bet) {
     ];
 }
 
+// Generate unique color for new player
+function generateUniqueColor($conn) {
+    $colors = [
+        '#EF4444', '#F97316', '#F59E0B', '#EAB308', '#84CC16',
+        '#22C55E', '#10B981', '#14B8A6', '#06B6D4', '#0EA5E9',
+        '#3B82F6', '#6366F1', '#8B5CF6', '#A855F7', '#D946EF',
+        '#EC4899', '#F43F5E', '#78716C', '#64748B', '#0D9488'
+    ];
+    
+    $result = pg_query($conn, "SELECT color FROM players");
+    $usedColors = [];
+    if ($result) {
+        while ($row = pg_fetch_assoc($result)) {
+            $usedColors[] = strtoupper($row['color']);
+        }
+    }
+    
+    foreach ($colors as $color) {
+        if (!in_array(strtoupper($color), $usedColors)) {
+            return $color;
+        }
+    }
+    
+    return '#' . substr(md5(uniqid()), 0, 6);
+}
+
 // Player functions
 function getAllPlayers($conn) {
     $result = pg_query($conn, "SELECT id, name, color FROM players ORDER BY name");
