@@ -136,13 +136,19 @@ admins (id, username, password, role)
 - Green = winning, White = not winning, Yellow = pending
 
 ## Recent Changes (Nov 26, 2025)
+- **Dashboard bon list**: Shows player name prominently instead of "Bon [date]"
+- **Bon detail popup**: Click bon to open popup with all details (rijen, calculations)
+- **API endpoint**: New api/get_bon.php for bon details via AJAX
+- **Klantoverzicht**: Always visible (not collapsed), shows inzet + saldo per player
+- **Day stats**: Changed "Totale winst" to "Uitbetaling" for clarity
+- **Empty bons filtered**: getBonnenByDate excludes bons without rijen
+- **OK buttons**: Visible OK buttons for mobile users (number input, bet input)
 - Replaced visual keyboard with popup-based input
 - New name popup with live player filtering
 - Number popup: typ + Enter flow
 - 0 triggers bet input, 0 as first number = bon complete
 - Scraper auto-retry on failure
 - Auto-color generation for new players
-- Simplified bon.php (removed 350+ lines of keyboard code)
 - HTML date picker for easy date navigation
 - Popup shows all saved rows with per-row calculations
 - Winning numbers visible at top of all popups
