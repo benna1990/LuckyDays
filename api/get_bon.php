@@ -40,18 +40,18 @@ if ($rijen && is_array($rijen)) {
         $winnings = floatval($rij['winnings']);
         $matches = intval($rij['matches']);
         $multiplier = floatval($rij['multiplier']);
-        
+
         $totalBet += $bet;
         $totalWinnings += $winnings;
-        
+
+        // HET HUIS LOGICA: inzet - winnings (niet gebruikt in frontend, maar consistent houden)
         $rijenData[] = [
             'id' => $rij['id'],
             'numbers' => $numbers,
             'bet' => $bet,
             'winnings' => $winnings,
             'matches' => $matches,
-            'multiplier' => $multiplier,
-            'saldo' => $winnings - $bet
+            'multiplier' => $multiplier
         ];
     }
 }
@@ -69,7 +69,7 @@ echo json_encode([
     'winning_numbers' => $winningNumbers ? array_map('intval', $winningNumbers) : [],
     'totals' => [
         'bet' => $totalBet,
-        'winnings' => $totalWinnings,
-        'saldo' => $totalWinnings - $totalBet
+        'winnings' => $totalWinnings
+        // Saldo wordt nu in JavaScript berekend met correcte huis-logica
     ]
 ]);

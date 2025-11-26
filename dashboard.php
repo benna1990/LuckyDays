@@ -60,12 +60,14 @@ $hasWinningNumbers = !empty($winningData);
     <nav class="bg-white border-b border-gray-100">
         <div class="max-w-6xl mx-auto px-4 py-3">
             <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
+                <a href="dashboard.php" class="flex items-center gap-3 hover:opacity-80 transition">
                     <span class="text-2xl">🍀</span>
                     <h1 class="text-lg font-semibold text-gray-800">Lucky Day</h1>
-                </div>
+                </a>
                 <div class="flex items-center gap-2">
+                    <a href="dashboard.php" class="px-3 py-1.5 text-sm text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition font-medium">Dashboard</a>
                     <a href="weekoverzicht.php" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition">Weekoverzicht</a>
+                    <a href="balans.php" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition">Balans</a>
                     <a href="beheer.php" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition">Beheer</a>
                     <a href="logout.php" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition">Uitloggen</a>
                 </div>
@@ -74,18 +76,27 @@ $hasWinningNumbers = !empty($winningData);
     </nav>
 
     <main class="max-w-6xl mx-auto px-4 py-6">
-        <div class="flex items-center justify-center gap-2 mb-8">
+        <div class="mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xl font-bold text-gray-800">Dagoverzicht</h2>
+                <div class="flex items-center gap-2">
+                    <a href="?date=<?= date('Y-m-d') ?>"
+                       class="px-3 py-2 text-sm font-medium bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition">
+                        Vandaag
+                    </a>
+                    <input type="date" id="date-picker" value="<?= $selected_date ?>"
+                           class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
+                           onchange="window.location.href='?date=' + this.value">
+                </div>
+            </div>
             <div class="flex items-center gap-1 overflow-x-auto pb-2">
                 <?php foreach ($date_range as $date): ?>
-                    <a href="?date=<?= $date ?>" 
+                    <a href="?date=<?= $date ?>"
                        class="date-btn px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap <?= $date === $selected_date ? 'active' : 'text-gray-600' ?>">
                         <?= getDayAndAbbreviatedMonth($date) ?>
                     </a>
                 <?php endforeach; ?>
             </div>
-            <input type="date" id="date-picker" value="<?= $selected_date ?>" 
-                   class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
-                   onchange="window.location.href='?date=' + this.value">
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -105,10 +116,11 @@ $hasWinningNumbers = !empty($winningData);
                     </div>
                 <?php else: ?>
                     <div class="space-y-3">
-                        <?php foreach ($bonnen as $bon): 
+                        <?php foreach ($bonnen as $bon):
                             $bonWinnings = floatval($bon['total_winnings']);
                             $bonBet = floatval($bon['total_bet']);
-                            $teBetalen = $bonWinnings - $bonBet;
+                            // HET HUIS LOGICA: inzet ontvangen - uitbetaald aan speler
+                            $huisSaldo = $bonBet - $bonWinnings;
                         ?>
                             <div onclick="openBonPopup(<?= $bon['id'] ?>)" class="cursor-pointer p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition group">
                                 <div class="flex items-center justify-between">
@@ -122,12 +134,12 @@ $hasWinningNumbers = !empty($winningData);
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <?php if ($teBetalen > 0): ?>
-                                            <div class="text-2xl font-bold text-red-500">–€<?= number_format($teBetalen, 2, ',', '.') ?></div>
-                                            <div class="text-xs text-red-500">Te betalen</div>
-                                        <?php elseif ($teBetalen < 0): ?>
-                                            <div class="text-2xl font-bold text-emerald-600">+€<?= number_format(abs($teBetalen), 2, ',', '.') ?></div>
+                                        <?php if ($huisSaldo > 0): ?>
+                                            <div class="text-2xl font-bold text-emerald-600">+€<?= number_format($huisSaldo, 2, ',', '.') ?></div>
                                             <div class="text-xs text-emerald-600">Ontvangen</div>
+                                        <?php elseif ($huisSaldo < 0): ?>
+                                            <div class="text-2xl font-bold text-red-500">–€<?= number_format(abs($huisSaldo), 2, ',', '.') ?></div>
+                                            <div class="text-xs text-red-500">Te betalen</div>
                                         <?php else: ?>
                                             <div class="text-2xl font-bold text-gray-500">€0,00</div>
                                             <div class="text-xs text-gray-500">Quitte</div>
@@ -142,8 +154,9 @@ $hasWinningNumbers = !empty($winningData);
 
             <div class="space-y-6">
                 <div class="card p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-4">Dagtotaal</h3>
-                    <?php 
+                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-4">Dagtotaal (Het Huis)</h3>
+                    <?php
+                    // HET HUIS LOGICA: inzet ontvangen - uitbetaald aan spelers
                     $inzetOntvangen = floatval($dayStats['total_bet']);
                     $uitbetaaldAanSpelers = floatval($dayStats['total_winnings']);
                     $eindSaldo = $inzetOntvangen - $uitbetaaldAanSpelers;
@@ -163,17 +176,17 @@ $hasWinningNumbers = !empty($winningData);
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">Uitbetaald aan spelers</span>
-                            <span class="font-medium text-red-500">-€<?= number_format($uitbetaaldAanSpelers, 2, ',', '.') ?></span>
+                            <span class="font-medium text-red-500">–€<?= number_format($uitbetaaldAanSpelers, 2, ',', '.') ?></span>
                         </div>
                         <hr class="border-gray-100">
                         <div class="flex justify-between">
                             <span class="font-medium text-gray-800">Eindsaldo</span>
                             <span class="font-bold text-lg <?= $eindSaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
-                                <?= $eindSaldo >= 0 ? '+' : '' ?>€<?= number_format($eindSaldo, 2, ',', '.') ?>
+                                <?= $eindSaldo >= 0 ? '+' : '–' ?>€<?= number_format(abs($eindSaldo), 2, ',', '.') ?>
                             </span>
                         </div>
                         <div class="text-center text-xs <?= $eindSaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
-                            <?= $eindSaldo >= 0 ? 'Winst voor teller' : 'Verlies voor teller' ?>
+                            <?= $eindSaldo >= 0 ? 'Ontvangen' : 'Te betalen' ?>
                         </div>
                     </div>
                 </div>
@@ -212,8 +225,26 @@ $hasWinningNumbers = !empty($winningData);
 
     </main>
 
+    <!-- Edit nummer modal -->
+    <div id="edit-number-modal" class="fixed inset-0 bg-black/30 hidden items-center justify-center z-[60]" onclick="if(event.target === this) closeEditNumberModal()">
+        <div class="bg-white rounded-xl shadow-2xl p-6 mx-4 w-full max-w-sm fade-in">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Nummer wijzigen</h3>
+            <input type="number" id="edit-number-input" min="1" max="80"
+                   class="w-full px-4 py-3 text-2xl text-center border-2 border-gray-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none"
+                   placeholder="1-80">
+            <div class="flex gap-2 mt-4">
+                <button onclick="closeEditNumberModal()" class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                    Annuleren
+                </button>
+                <button onclick="saveEditedNumber()" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600">
+                    Opslaan
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="popup-overlay" class="fixed inset-0 bg-black/50 modal-overlay hidden items-center justify-center z-50">
-        <div id="popup-content" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 fade-in max-h-[90vh] overflow-y-auto">
+        <div id="popup-content" class="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 p-6 fade-in max-h-[90vh] overflow-y-auto">
             <div id="name-popup" class="hidden">
                 <div class="text-center mb-6">
                     <h3 class="text-lg font-semibold text-gray-800">Spelernaam</h3>
@@ -338,24 +369,25 @@ $hasWinningNumbers = !empty($winningData);
                 return;
             }
             container.classList.remove('hidden');
-            
+
             const hasPending = winningNumbers.length === 0;
             let totalBet = 0;
             let totalWinnings = 0;
-            
+
             const rowsHtml = savedRows.map((row, i) => {
                 totalBet += row.bet;
                 const result = calculateWinnings(row.numbers, row.bet);
                 totalWinnings += result.winnings;
-                const saldo = result.winnings - row.bet;
-                
+                // HET HUIS LOGICA: inzet - winnings
+                const huisSaldo = row.bet - result.winnings;
+
                 return `
                     <div class="bg-white border border-gray-100 rounded-lg p-3">
                         <div class="flex items-center justify-between mb-2">
                             <span class="text-xs text-gray-500">Rij ${i + 1}</span>
-                            ${hasPending 
+                            ${hasPending
                                 ? '<span class="text-xs font-medium text-amber-600">In afwachting</span>'
-                                : `<span class="text-xs font-medium ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
+                                : `<span class="text-xs font-medium ${huisSaldo > 0 ? 'text-emerald-600' : (huisSaldo < 0 ? 'text-red-500' : 'text-gray-500')}">${huisSaldo > 0 ? '+' : (huisSaldo < 0 ? '–' : '')}€${Math.abs(huisSaldo).toFixed(2)}</span>`
                             }
                         </div>
                         <div class="flex flex-wrap gap-1">
@@ -371,23 +403,24 @@ $hasWinningNumbers = !empty($winningData);
                     </div>
                 `;
             }).join('');
-            
-            const totalSaldo = totalWinnings - totalBet;
+
+            // HET HUIS LOGICA: inzet - winnings
+            const totalHuisSaldo = totalBet - totalWinnings;
             const totalsHtml = `
                 <div class="bg-gray-100 rounded-lg p-3 mt-2">
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-600">Totaal ${savedRows.length} rij${savedRows.length > 1 ? 'en' : ''}</span>
-                        ${hasPending 
+                        ${hasPending
                             ? '<span class="font-medium text-amber-600">In afwachting</span>'
-                            : `<span class="font-medium ${totalSaldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${totalSaldo >= 0 ? '+' : ''}€${totalSaldo.toFixed(2)}</span>`
+                            : `<span class="font-medium ${totalHuisSaldo > 0 ? 'text-emerald-600' : (totalHuisSaldo < 0 ? 'text-red-500' : 'text-gray-500')}">${totalHuisSaldo > 0 ? '+' : (totalHuisSaldo < 0 ? '–' : '')}€${Math.abs(totalHuisSaldo).toFixed(2)}</span>`
                         }
                     </div>
                     <div class="text-xs text-gray-500 mt-1">
-                        Inzet: €${totalBet.toFixed(2)}${!hasPending ? ` · Winst: €${totalWinnings.toFixed(2)}` : ''}
+                        Inzet: €${totalBet.toFixed(2)}${!hasPending ? ` · Uitbetaald: €${totalWinnings.toFixed(2)}` : ''}
                     </div>
                 </div>
             `;
-            
+
             container.innerHTML = rowsHtml + totalsHtml;
         }
 
@@ -450,49 +483,53 @@ $hasWinningNumbers = !empty($winningData);
             const bon = popupBon;
             const totals = popupTotals;
             let rijenHtml = popupRijen.map((rij, i) => {
-                const teBetalen = rij.winnings - rij.bet;
+                // HET HUIS LOGICA: inzet - winnings
+                const huisSaldo = rij.bet - rij.winnings;
                 return `
-                    <div class="p-3 bg-gray-50 rounded-lg" data-rij-index="${i}">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs text-gray-500">Rij ${i + 1}</span>
-                            <div class="flex items-center gap-2">
-                                ${popupHasPending 
-                                    ? '<span class="text-xs font-medium text-amber-600">In afwachting</span>'
-                                    : (teBetalen > 0 
-                                        ? `<span class="text-xs font-medium text-emerald-600">+€${teBetalen.toFixed(2)}</span>`
-                                        : (teBetalen < 0 
-                                            ? `<span class="text-xs font-medium text-red-500">–€${Math.abs(teBetalen).toFixed(2)}</span>`
-                                            : '<span class="text-xs font-medium text-gray-500">€0,00</span>'))
+                    <div class="py-2 px-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition" data-rij-index="${i}">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 flex-1 min-w-0">
+                                <span class="text-xs font-medium text-gray-600 flex-shrink-0">#${i + 1}</span>
+                                <div class="flex flex-wrap gap-1 flex-1 min-w-0">
+                                    ${rij.numbers.map((n, j) => {
+                                        const isMatch = popupWinNums.includes(n);
+                                        const cls = popupHasPending ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : (isMatch ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-200 text-gray-600 hover:bg-gray-300');
+                                        return `<span class="w-6 h-6 flex items-center justify-center text-xs font-medium ${cls} rounded cursor-pointer transition" onclick="editNumber(${i}, ${j})" data-rij="${i}" data-num="${j}">${n}</span>`;
+                                    }).join('')}
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <div class="text-xs text-gray-500">€${rij.bet.toFixed(2)}</div>
+                                ${popupHasPending
+                                    ? '<span class="text-xs font-medium text-amber-600 w-16 text-right">Pending</span>'
+                                    : (huisSaldo > 0
+                                        ? `<span class="text-xs font-bold text-emerald-600 w-16 text-right">+€${huisSaldo.toFixed(2)}</span>`
+                                        : (huisSaldo < 0
+                                            ? `<span class="text-xs font-bold text-red-500 w-16 text-right">–€${Math.abs(huisSaldo).toFixed(2)}</span>`
+                                            : '<span class="text-xs font-medium text-gray-500 w-16 text-right">€0,00</span>'))
                                 }
-                                <button onclick="deleteRijFromPopup(${rij.id})" class="text-gray-400 hover:text-red-500 transition">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                <button onclick="deleteRijFromPopup(${rij.id})" class="text-gray-400 hover:text-red-500 transition text-xs" title="Verwijderen">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                 </button>
                             </div>
-                        </div>
-                        <div class="flex flex-wrap gap-1 mb-2">
-                            ${rij.numbers.map((n, j) => {
-                                const isMatch = popupWinNums.includes(n);
-                                const cls = popupHasPending ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : (isMatch ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-200 text-gray-500 hover:bg-gray-300');
-                                return `<span class="w-8 h-8 flex items-center justify-center text-sm font-medium ${cls} rounded cursor-pointer transition" onclick="editNumber(${i}, ${j})" data-rij="${i}" data-num="${j}">${n}</span>`;
-                            }).join('')}
-                        </div>
-                        <div class="text-xs text-gray-500">
-                            Inzet: €${rij.bet.toFixed(2)}${!popupHasPending ? ` · ${rij.matches} goed${rij.multiplier > 0 ? ` · ${rij.multiplier}x · €${rij.winnings.toFixed(2)}` : ''}` : ''}
                         </div>
                     </div>
                 `;
             }).join('');
-            
-            const saldo = totals.saldo;
+
+            // HET HUIS LOGICA: inzet - winnings
+            const saldo = totals.bet - totals.winnings;
             const hasChanges = checkForChanges();
             
             const content = `
-                <div class="text-center mb-4">
-                    <div class="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3" style="background: ${bon.player_color}">
+                <div class="flex items-center gap-4 mb-4 pb-4 border-b border-gray-200">
+                    <div class="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-bold flex-shrink-0" style="background: ${bon.player_color}">
                         ${bon.player_name.charAt(0).toUpperCase()}
                     </div>
-                    <h3 class="text-xl font-bold text-gray-800">${escapeHtml(bon.player_name)}</h3>
-                    <p class="text-sm text-gray-500">${popupRijen.length} rij${popupRijen.length !== 1 ? 'en' : ''}</p>
+                    <div class="flex-1">
+                        <h3 class="text-xl font-bold text-gray-800">${escapeHtml(bon.player_name)}</h3>
+                        <p class="text-sm text-gray-500">Bon #${bon.id} · ${popupRijen.length} rij${popupRijen.length !== 1 ? 'en' : ''}</p>
+                    </div>
                 </div>
                 
                 ${popupWinNums.length > 0 ? `
@@ -508,47 +545,56 @@ $hasWinningNumbers = !empty($winningData);
                         </div>
                     </div>
                 ` : ''}
-                
-                <div class="space-y-2 mb-4 max-h-64 overflow-y-auto">
-                    ${rijenHtml || '<p class="text-center text-gray-400 py-4">Geen rijen</p>'}
+
+                <div class="mb-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-sm font-semibold text-gray-700">Rijen (${popupRijen.length}/10)</h4>
+                        <div class="flex items-center gap-4 text-xs text-gray-500">
+                            <span>Inzet</span>
+                            <span class="w-16 text-right">Resultaat</span>
+                            <span class="w-4"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-1 max-h-80 overflow-y-auto">
+                        ${rijenHtml || '<p class="text-center text-gray-400 py-4">Geen rijen</p>'}
+                    </div>
                 </div>
                 
                 <div class="bg-gray-100 rounded-xl p-4 mb-4">
                     <div class="flex justify-between text-sm mb-1">
                         <span class="text-gray-600">Inzet ontvangen</span>
-                        <span class="font-medium">€${totals.bet.toFixed(2)}</span>
+                        <span class="font-medium text-emerald-600">+€${totals.bet.toFixed(2)}</span>
                     </div>
                     <div class="flex justify-between text-sm mb-2">
                         <span class="text-gray-600">Uitbetaald</span>
-                        <span class="font-medium">€${totals.winnings.toFixed(2)}</span>
+                        <span class="font-medium text-red-500">–€${totals.winnings.toFixed(2)}</span>
                     </div>
                     <hr class="border-gray-200 my-2">
                     <div class="flex justify-between">
-                        <span class="font-semibold text-gray-800">Resultaat</span>
-                        ${popupHasPending 
+                        <span class="font-semibold text-gray-800">Resultaat (Het Huis)</span>
+                        ${popupHasPending
                             ? '<span class="font-bold text-lg text-amber-600">In afwachting</span>'
-                            : (saldo > 0 
-                                ? `<span class="font-bold text-lg text-red-500">–€${saldo.toFixed(2)}</span>`
-                                : (saldo < 0 
-                                    ? `<span class="font-bold text-lg text-emerald-600">+€${Math.abs(saldo).toFixed(2)}</span>`
+                            : (saldo > 0
+                                ? `<span class="font-bold text-lg text-emerald-600">+€${saldo.toFixed(2)}</span>`
+                                : (saldo < 0
+                                    ? `<span class="font-bold text-lg text-red-500">–€${Math.abs(saldo).toFixed(2)}</span>`
                                     : '<span class="font-bold text-lg text-gray-500">€0,00</span>'))
                         }
                     </div>
                     ${!popupHasPending ? `
-                        <div class="text-center text-xs mt-2 ${saldo > 0 ? 'text-red-500' : (saldo < 0 ? 'text-emerald-600' : 'text-gray-500')}">
-                            ${saldo > 0 ? 'Te betalen' : (saldo < 0 ? 'Ontvangen' : 'Quitte')}
+                        <div class="text-center text-xs mt-2 ${saldo > 0 ? 'text-emerald-600' : (saldo < 0 ? 'text-red-500' : 'text-gray-500')}">
+                            ${saldo > 0 ? 'Ontvangen' : (saldo < 0 ? 'Te betalen' : 'Quitte')}
                         </div>
                     ` : ''}
                 </div>
                 
                 <div class="flex gap-2">
-                    ${hasChanges ? `
-                        <button onclick="savePopupChanges()" id="save-popup-btn" class="flex-1 py-3 text-sm font-medium text-white bg-emerald-500 rounded-xl hover:bg-emerald-600 transition ${popupSaving ? 'opacity-50 cursor-not-allowed' : ''}" ${popupSaving ? 'disabled' : ''}>
-                            ${popupSaving ? 'Opslaan...' : 'Opslaan'}
-                        </button>
-                    ` : ''}
-                    <button onclick="deleteBonFromPopup(${bon.id})" class="flex-1 py-3 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
+                    <button onclick="deleteBonFromPopup(${bon.id})" class="px-4 py-3 text-sm font-medium text-red-600 hover:text-red-700 transition">
+                        <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                         Verwijderen
+                    </button>
+                    <button onclick="${hasChanges ? 'savePopupChanges()' : 'hidePopup()'}" id="done-save-btn" class="flex-1 py-3 text-sm font-medium text-white ${hasChanges ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-gray-800 hover:bg-gray-900'} rounded-xl transition ${popupSaving ? 'opacity-50 cursor-not-allowed' : ''}" ${popupSaving ? 'disabled' : ''}>
+                        ${popupSaving ? 'Opslaan...' : (hasChanges ? 'Opslaan' : 'Gereed')}
                     </button>
                 </div>
             `;
@@ -568,21 +614,83 @@ $hasWinningNumbers = !empty($winningData);
             return false;
         }
 
+        let editingRijIndex = null;
+        let editingNumIndex = null;
+
         function editNumber(rijIndex, numIndex) {
+            editingRijIndex = rijIndex;
+            editingNumIndex = numIndex;
             const currentNum = popupRijen[rijIndex].numbers[numIndex];
-            const newNum = prompt(`Wijzig nummer (1-80):`, currentNum);
-            
-            if (newNum === null) return;
-            
-            const parsed = parseInt(newNum);
+
+            const modal = document.getElementById('edit-number-modal');
+            const input = document.getElementById('edit-number-input');
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            input.value = currentNum;
+            input.focus();
+            input.select();
+
+            // Enter key support
+            input.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveEditedNumber();
+                } else if (e.key === 'Escape') {
+                    closeEditNumberModal();
+                }
+            };
+        }
+
+        function closeEditNumberModal() {
+            const modal = document.getElementById('edit-number-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            editingRijIndex = null;
+            editingNumIndex = null;
+        }
+
+        function saveEditedNumber() {
+            const input = document.getElementById('edit-number-input');
+            const parsed = parseInt(input.value);
+
             if (isNaN(parsed) || parsed < 1 || parsed > 80) {
                 alert('Voer een nummer in tussen 1 en 80');
                 return;
             }
-            
-            popupRijen[rijIndex].numbers[numIndex] = parsed;
-            
+
+            // Live update
+            popupRijen[editingRijIndex].numbers[editingNumIndex] = parsed;
+
+            // Herbereken winnings voor deze rij
+            const rij = popupRijen[editingRijIndex];
+            const result = calculateWinningsForRij(rij.numbers, rij.bet, popupWinNums);
+            rij.matches = result.matches;
+            rij.multiplier = result.multiplier;
+            rij.winnings = result.winnings;
+
+            // Update totals
+            recalculateTotals();
+
+            closeEditNumberModal();
             renderBonPopupContent();
+        }
+
+        function calculateWinningsForRij(numbers, bet, winningNums) {
+            if (winningNums.length === 0) return { matches: 0, multiplier: 0, winnings: 0 };
+            const matches = numbers.filter(n => winningNums.includes(n)).length;
+            const gameType = numbers.length;
+            const mult = multipliers[gameType]?.[matches] || 0;
+            return { matches, multiplier: mult, winnings: bet * mult };
+        }
+
+        function recalculateTotals() {
+            popupTotals.bet = 0;
+            popupTotals.winnings = 0;
+            popupRijen.forEach(rij => {
+                popupTotals.bet += rij.bet;
+                popupTotals.winnings += rij.winnings;
+            });
         }
 
         async function savePopupChanges() {

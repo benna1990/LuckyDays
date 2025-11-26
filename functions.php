@@ -378,7 +378,7 @@ function getPlayersByDate($conn, $date) {
 
 function getPlayerDayStats($conn, $date) {
     $result = pg_query_params($conn,
-        "SELECT 
+        "SELECT
             p.id, p.name, p.color,
             COUNT(DISTINCT b.id) as total_bons,
             COUNT(r.id) as total_rijen,
@@ -387,8 +387,9 @@ function getPlayerDayStats($conn, $date) {
             COALESCE(SUM(r.winnings), 0) - COALESCE(SUM(r.bet), 0) as saldo
          FROM players p
          JOIN bons b ON p.id = b.player_id AND b.date = $1
-         LEFT JOIN rijen r ON r.bon_id = b.id
+         JOIN rijen r ON r.bon_id = b.id
          GROUP BY p.id, p.name, p.color
+         HAVING COUNT(DISTINCT b.id) > 0 AND COUNT(r.id) > 0
          ORDER BY saldo DESC",
         [$date]
     );
@@ -397,7 +398,7 @@ function getPlayerDayStats($conn, $date) {
 
 function getWeekStats($conn, $start_date, $end_date) {
     $result = pg_query_params($conn,
-        "SELECT 
+        "SELECT
             p.id, p.name, p.color,
             COUNT(DISTINCT b.id) as total_bons,
             COUNT(r.id) as total_rijen,
@@ -406,8 +407,9 @@ function getWeekStats($conn, $start_date, $end_date) {
             COALESCE(SUM(r.winnings), 0) - COALESCE(SUM(r.bet), 0) as saldo
          FROM players p
          JOIN bons b ON p.id = b.player_id AND b.date BETWEEN $1 AND $2
-         LEFT JOIN rijen r ON r.bon_id = b.id
+         JOIN rijen r ON r.bon_id = b.id
          GROUP BY p.id, p.name, p.color
+         HAVING COUNT(DISTINCT b.id) > 0 AND COUNT(r.id) > 0
          ORDER BY saldo DESC",
         [$start_date, $end_date]
     );

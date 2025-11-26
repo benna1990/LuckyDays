@@ -17,36 +17,43 @@ $next_week = date('Y-m-d', strtotime($week_range['start'] . ' +7 days'));
 $week_stats = getWeekStats($conn, $week_range['start'], $week_range['end']);
 $week_totals = getWeekTotals($conn, $week_range['start'], $week_range['end']);
 
+// HET HUIS LOGICA: inzet ontvangen - uitbetaald aan spelers
 $total_bet = floatval($week_totals['total_bet']);
 $total_winnings = floatval($week_totals['total_winnings']);
-$total_saldo = $total_winnings - $total_bet;
+$total_huis_saldo = $total_bet - $total_winnings;
 
-$winners = [];
-$losers = [];
+// HET HUIS PERSPECTIEF: spelers die WINNEN = het huis moet betalen (negatief voor het huis)
+// HET HUIS PERSPECTIEF: spelers die VERLIEZEN = het huis ontvangt (positief voor het huis)
+$spelers_die_wonnen = []; // Het huis moet betalen
+$spelers_die_verloren = []; // Het huis ontvangt
 if ($week_stats && is_array($week_stats)) {
     foreach ($week_stats as $ps) {
-        $saldo = floatval($ps['saldo']);
-        if ($saldo > 0) {
-            $winners[] = $ps;
-        } elseif ($saldo < 0) {
-            $losers[] = $ps;
+        // Converteer speler-saldo naar huis-saldo
+        $speler_saldo = floatval($ps['saldo']); // winnings - bet vanuit speler perspectief
+        $huis_saldo = -$speler_saldo; // omkeren voor het huis perspectief
+        $ps['huis_saldo'] = $huis_saldo;
+
+        if ($speler_saldo > 0) { // Speler wint
+            $spelers_die_wonnen[] = $ps; // Het huis moet betalen
+        } elseif ($speler_saldo < 0) { // Speler verliest
+            $spelers_die_verloren[] = $ps; // Het huis ontvangt
         }
     }
-    usort($winners, fn($a, $b) => floatval($b['saldo']) - floatval($a['saldo']));
-    usort($losers, fn($a, $b) => floatval($a['saldo']) - floatval($b['saldo']));
-    $winners = array_slice($winners, 0, 10);
-    $losers = array_slice($losers, 0, 10);
+    usort($spelers_die_wonnen, fn($a, $b) => floatval($b['saldo']) - floatval($a['saldo'])); // Hoogste winst eerst
+    usort($spelers_die_verloren, fn($a, $b) => floatval($a['saldo']) - floatval($b['saldo'])); // Grootste verlies eerst
+    $spelers_die_wonnen = array_slice($spelers_die_wonnen, 0, 10);
+    $spelers_die_verloren = array_slice($spelers_die_verloren, 0, 10);
 }
 
-$toPay = 0;
-$toReceive = 0;
+$huis_moet_betalen = 0; // Aan winnende spelers
+$huis_ontvangt = 0; // Van verliezende spelers
 if ($week_stats && is_array($week_stats)) {
     foreach ($week_stats as $ps) {
-        $saldo = floatval($ps['saldo']);
-        if ($saldo > 0) {
-            $toPay += $saldo;
-        } else {
-            $toReceive += abs($saldo);
+        $speler_saldo = floatval($ps['saldo']);
+        if ($speler_saldo > 0) { // Speler wint
+            $huis_moet_betalen += $speler_saldo;
+        } else { // Speler verliest
+            $huis_ontvangt += abs($speler_saldo);
         }
     }
 }
@@ -54,38 +61,38 @@ if ($week_stats && is_array($week_stats)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'export_csv') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="week' . $week_range['week'] . '_' . $week_range['year'] . '.csv"');
-    
+
     $output = fopen('php://output', 'w');
     fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-    
+
     fputcsv($output, ['Weekoverzicht Week ' . $week_range['week'] . ' ' . $week_range['year']], ';');
     fputcsv($output, ['Periode: ' . $week_range['start'] . ' t/m ' . $week_range['end']], ';');
     fputcsv($output, [], ';');
     fputcsv($output, ['SPELERS OVERZICHT'], ';');
     fputcsv($output, ['Speler', 'Bonnen', 'Rijen', 'Inzet', 'Winst', 'Saldo', 'Status'], ';');
-    
+
     if ($week_stats) {
         foreach ($week_stats as $ps) {
-            $saldo = floatval($ps['saldo']);
-            $status = $saldo > 0 ? 'KRIJGT' : ($saldo < 0 ? 'BETAALT' : 'GELIJK');
+            $speler_saldo = floatval($ps['saldo']); // winnings - bet (speler perspectief)
+            $status = $speler_saldo > 0 ? 'WON' : ($speler_saldo < 0 ? 'VERLOOR' : 'QUITTE');
             fputcsv($output, [
                 $ps['name'],
                 $ps['total_bons'],
                 $ps['total_rijen'],
                 number_format($ps['total_bet'], 2, ',', '.'),
                 number_format($ps['total_winnings'], 2, ',', '.'),
-                number_format($saldo, 2, ',', '.'),
+                number_format($speler_saldo, 2, ',', '.'),
                 $status
             ], ';');
         }
     }
-    
+
     fputcsv($output, [], ';');
-    fputcsv($output, ['BALANS'], ';');
-    fputcsv($output, ['Totaal inzet', number_format($total_bet, 2, ',', '.')], ';');
-    fputcsv($output, ['Totaal uitbetaald', number_format($total_winnings, 2, ',', '.')], ';');
-    fputcsv($output, ['Resultaat', number_format(-$total_saldo, 2, ',', '.')], ';');
-    
+    fputcsv($output, ['HET HUIS BALANS'], ';');
+    fputcsv($output, ['Inzet ontvangen', number_format($total_bet, 2, ',', '.')], ';');
+    fputcsv($output, ['Uitbetaald aan spelers', number_format($total_winnings, 2, ',', '.')], ';');
+    fputcsv($output, ['Het Huis resultaat', number_format($total_huis_saldo, 2, ',', '.')], ';');
+
     fclose($output);
     exit;
 }
@@ -113,11 +120,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <a href="dashboard.php" class="text-gray-400 hover:text-gray-600">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                     </a>
-                    <span class="text-2xl">🍀</span>
-                    <h1 class="text-lg font-semibold text-gray-800">Weekoverzicht</h1>
+                    <a href="dashboard.php" class="flex items-center gap-3 hover:opacity-80 transition">
+                        <span class="text-2xl">🍀</span>
+                        <h1 class="text-lg font-semibold text-gray-800">Lucky Day</h1>
+                    </a>
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="dashboard.php" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition">Dashboard</a>
+                    <a href="weekoverzicht.php" class="px-3 py-1.5 text-sm text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition font-medium">Weekoverzicht</a>
+                    <a href="balans.php" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition">Balans</a>
                     <a href="beheer.php" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition">Beheer</a>
                     <a href="logout.php" class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition">Uitloggen</a>
                 </div>
@@ -145,19 +156,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div class="card p-5">
-                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Totaal Inzet</p>
-                <p class="text-2xl font-semibold text-gray-900">€<?= number_format($total_bet, 2, ',', '.') ?></p>
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Inzet Ontvangen</p>
+                <p class="text-2xl font-semibold text-emerald-600">+€<?= number_format($total_bet, 2, ',', '.') ?></p>
             </div>
             <div class="card p-5">
-                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Totaal Uitbetaald</p>
-                <p class="text-2xl font-semibold text-emerald-600">€<?= number_format($total_winnings, 2, ',', '.') ?></p>
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Uitbetaald</p>
+                <p class="text-2xl font-semibold text-red-500">–€<?= number_format($total_winnings, 2, ',', '.') ?></p>
             </div>
             <div class="card p-5">
-                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Resultaat</p>
-                <p class="text-2xl font-semibold <?= -$total_saldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
-                    <?= -$total_saldo >= 0 ? '+' : '' ?>€<?= number_format(-$total_saldo, 2, ',', '.') ?>
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Resultaat (Het Huis)</p>
+                <p class="text-2xl font-semibold <?= $total_huis_saldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
+                    <?= $total_huis_saldo >= 0 ? '+' : '–' ?>€<?= number_format(abs($total_huis_saldo), 2, ',', '.') ?>
                 </p>
-                <p class="text-xs text-gray-400 mt-1"><?= -$total_saldo >= 0 ? 'Winst' : 'Verlies' ?></p>
+                <p class="text-xs text-gray-400 mt-1"><?= $total_huis_saldo >= 0 ? 'Ontvangen' : 'Te betalen' ?></p>
             </div>
             <div class="card p-5">
                 <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Activiteit</p>
@@ -169,22 +180,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <div class="card p-6">
                 <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Te betalen aan spelers</h3>
-                <div class="text-3xl font-bold text-red-500 mb-2">€<?= number_format($toPay, 2, ',', '.') ?></div>
-                <p class="text-xs text-gray-500"><?= count($winners) ?> speler<?= count($winners) != 1 ? 's' : '' ?> met winst</p>
+                <div class="text-3xl font-bold text-red-500 mb-2">–€<?= number_format($huis_moet_betalen, 2, ',', '.') ?></div>
+                <p class="text-xs text-gray-500"><?= count($spelers_die_wonnen) ?> speler<?= count($spelers_die_wonnen) != 1 ? 's' : '' ?> wonnen</p>
             </div>
             <div class="card p-6">
-                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Te ontvangen van spelers</h3>
-                <div class="text-3xl font-bold text-emerald-600 mb-2">€<?= number_format($toReceive, 2, ',', '.') ?></div>
-                <p class="text-xs text-gray-500"><?= count($losers) ?> speler<?= count($losers) != 1 ? 's' : '' ?> met verlies</p>
+                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Ontvangen van spelers</h3>
+                <div class="text-3xl font-bold text-emerald-600 mb-2">+€<?= number_format($huis_ontvangt, 2, ',', '.') ?></div>
+                <p class="text-xs text-gray-500"><?= count($spelers_die_verloren) ?> speler<?= count($spelers_die_verloren) != 1 ? 's' : '' ?> verloren</p>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <?php if (!empty($winners)): ?>
+            <?php if (!empty($spelers_die_wonnen)): ?>
             <div class="card p-6">
-                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Top Winnaars</h3>
+                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Spelers die wonnen (Het Huis betaalt)</h3>
                 <div class="space-y-2">
-                    <?php foreach ($winners as $i => $w): ?>
+                    <?php foreach ($spelers_die_wonnen as $i => $w): ?>
                     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div class="flex items-center gap-3">
                             <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold <?= $i === 0 ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-600' ?>">
@@ -192,18 +203,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             </span>
                             <span class="font-medium text-gray-800"><?= htmlspecialchars($w['name']) ?></span>
                         </div>
-                        <span class="font-semibold text-emerald-600">+€<?= number_format($w['saldo'], 2, ',', '.') ?></span>
+                        <span class="font-semibold text-red-500">–€<?= number_format($w['saldo'], 2, ',', '.') ?></span>
                     </div>
                     <?php endforeach; ?>
                 </div>
             </div>
             <?php endif; ?>
-            
-            <?php if (!empty($losers)): ?>
+
+            <?php if (!empty($spelers_die_verloren)): ?>
             <div class="card p-6">
-                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Top Verliezers</h3>
+                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Spelers die verloren (Het Huis ontvangt)</h3>
                 <div class="space-y-2">
-                    <?php foreach ($losers as $i => $l): ?>
+                    <?php foreach ($spelers_die_verloren as $i => $l): ?>
                     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div class="flex items-center gap-3">
                             <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-200 text-gray-600">
@@ -211,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             </span>
                             <span class="font-medium text-gray-800"><?= htmlspecialchars($l['name']) ?></span>
                         </div>
-                        <span class="font-semibold text-red-500">€<?= number_format($l['saldo'], 2, ',', '.') ?></span>
+                        <span class="font-semibold text-emerald-600">+€<?= number_format(abs($l['saldo']), 2, ',', '.') ?></span>
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -248,10 +259,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-50">
-                            <?php foreach ($week_stats as $ps): 
-                                $saldo = floatval($ps['saldo']);
-                                $needsPay = $saldo < 0;
-                                $getsWin = $saldo > 0;
+                            <?php foreach ($week_stats as $ps):
+                                $speler_saldo = floatval($ps['saldo']); // winnings - bet (speler perspectief)
+                                $spelerWint = $speler_saldo > 0;
+                                $spelerVerliest = $speler_saldo < 0;
                             ?>
                             <tr class="hover:bg-gray-50">
                                 <td class="py-3">
@@ -264,14 +275,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <td class="py-3 text-right text-gray-600"><?= $ps['total_rijen'] ?></td>
                                 <td class="py-3 text-right text-gray-900">€<?= number_format($ps['total_bet'], 2, ',', '.') ?></td>
                                 <td class="py-3 text-right text-gray-900">€<?= number_format($ps['total_winnings'], 2, ',', '.') ?></td>
-                                <td class="py-3 text-right font-semibold <?= $getsWin ? 'text-emerald-600' : ($needsPay ? 'text-red-500' : 'text-gray-600') ?>">
-                                    <?= $saldo >= 0 ? '+' : '' ?>€<?= number_format($saldo, 2, ',', '.') ?>
+                                <td class="py-3 text-right font-semibold <?= $spelerWint ? 'text-emerald-600' : ($spelerVerliest ? 'text-red-500' : 'text-gray-600') ?>">
+                                    <?= $speler_saldo >= 0 ? '+' : '' ?>€<?= number_format($speler_saldo, 2, ',', '.') ?>
                                 </td>
                                 <td class="py-3 text-center">
-                                    <?php if ($getsWin): ?>
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Krijgt</span>
-                                    <?php elseif ($needsPay): ?>
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Betaalt</span>
+                                    <?php if ($spelerWint): ?>
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Won</span>
+                                    <?php elseif ($spelerVerliest): ?>
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Verloor</span>
                                     <?php else: ?>
                                         <span class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Quitte</span>
                                     <?php endif; ?>
@@ -285,29 +296,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
         <div class="card p-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4">Per dag</h2>
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Per dag (Het Huis perspectief)</h2>
             <div class="grid grid-cols-7 gap-2">
-                <?php 
+                <?php
                 $current = new DateTime($week_range['start']);
                 $end = new DateTime($week_range['end']);
                 while ($current <= $end):
                     $dayStr = $current->format('Y-m-d');
                     $dayStats = getDayStats($conn, $dayStr);
-                    $daySaldo = floatval($dayStats['total_winnings']) - floatval($dayStats['total_bet']);
+                    // HET HUIS LOGICA: inzet ontvangen - uitbetaald
+                    $dayHuisSaldo = floatval($dayStats['total_bet']) - floatval($dayStats['total_winnings']);
                 ?>
-                <a href="dashboard.php?date=<?= $dayStr ?>" 
+                <a href="dashboard.php?date=<?= $dayStr ?>"
                    class="p-3 rounded-xl border <?= intval($dayStats['total_bons']) > 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50' ?> border-gray-200 text-center transition">
                     <p class="text-xs text-gray-500"><?= getDayAndAbbreviatedMonth($dayStr) ?></p>
                     <p class="text-sm font-semibold text-gray-900 mt-1"><?= $dayStats['total_bons'] ?> bon<?= $dayStats['total_bons'] != 1 ? 'nen' : '' ?></p>
                     <?php if (floatval($dayStats['total_bet']) > 0): ?>
-                        <p class="text-xs <?= $daySaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?> mt-1">
-                            <?= $daySaldo >= 0 ? '+' : '' ?>€<?= number_format($daySaldo, 0, ',', '.') ?>
+                        <p class="text-xs <?= $dayHuisSaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?> mt-1">
+                            <?= $dayHuisSaldo >= 0 ? '+' : '–' ?>€<?= number_format(abs($dayHuisSaldo), 0, ',', '.') ?>
                         </p>
                     <?php endif; ?>
                 </a>
-                <?php 
+                <?php
                     $current->modify('+1 day');
-                endwhile; 
+                endwhile;
                 ?>
             </div>
         </div>
