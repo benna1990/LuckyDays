@@ -74,13 +74,18 @@ $hasWinningNumbers = !empty($winningData);
     </nav>
 
     <main class="max-w-6xl mx-auto px-4 py-6">
-        <div class="flex items-center justify-center gap-1 mb-8 overflow-x-auto pb-2">
-            <?php foreach ($date_range as $date): ?>
-                <a href="?date=<?= $date ?>" 
-                   class="date-btn px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap <?= $date === $selected_date ? 'active' : 'text-gray-600' ?>">
-                    <?= getDayAndAbbreviatedMonth($date) ?>
-                </a>
-            <?php endforeach; ?>
+        <div class="flex items-center justify-center gap-2 mb-8">
+            <div class="flex items-center gap-1 overflow-x-auto pb-2">
+                <?php foreach ($date_range as $date): ?>
+                    <a href="?date=<?= $date ?>" 
+                       class="date-btn px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap <?= $date === $selected_date ? 'active' : 'text-gray-600' ?>">
+                        <?= getDayAndAbbreviatedMonth($date) ?>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+            <input type="date" id="date-picker" value="<?= $selected_date ?>" 
+                   class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
+                   onchange="window.location.href='?date=' + this.value">
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -229,34 +234,55 @@ $hasWinningNumbers = !empty($winningData);
     </main>
 
     <div id="popup-overlay" class="fixed inset-0 bg-black/50 modal-overlay hidden items-center justify-center z-50">
-        <div id="popup-content" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 fade-in">
+        <div id="popup-content" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 fade-in max-h-[90vh] overflow-y-auto">
             <div id="name-popup" class="hidden">
                 <div class="text-center mb-6">
                     <h3 class="text-lg font-semibold text-gray-800">Spelernaam</h3>
                     <p class="text-sm text-gray-500 mt-1">Typ naam en druk Enter</p>
                 </div>
-                <input type="text" id="name-input" class="w-full px-4 py-4 text-xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="Naam..." autocomplete="off">
+                <input type="text" id="name-input" class="w-full px-4 py-4 text-xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="Naam..." autocomplete="off" enterkeyhint="go">
                 <div id="player-suggestions" class="mt-3 max-h-48 overflow-y-auto hidden"></div>
                 <p class="text-xs text-gray-400 text-center mt-4">Enter = selecteren/aanmaken · Leeg + Enter = sluiten</p>
             </div>
 
             <div id="number-popup" class="hidden">
-                <div class="text-center mb-4">
+                <div class="text-center mb-3">
                     <h3 class="text-lg font-semibold text-gray-800" id="popup-player-name"></h3>
-                    <p class="text-sm text-gray-500">Rij <span id="current-row-num">1</span></p>
                 </div>
-                <div id="current-numbers" class="flex flex-wrap gap-2 justify-center min-h-[44px] mb-4"></div>
-                <input type="text" id="number-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="Nummer..." autocomplete="off" inputmode="numeric">
-                <p class="text-xs text-gray-400 text-center mt-4">Enter = toevoegen · 0 = naar inzet</p>
+                
+                <div id="popup-winning-numbers" class="mb-4 p-3 bg-emerald-50 rounded-xl hidden">
+                    <p class="text-xs text-emerald-600 font-medium mb-2 text-center">Winnende nummers</p>
+                    <div id="popup-winning-display" class="flex flex-wrap gap-1 justify-center"></div>
+                </div>
+                
+                <div id="saved-rows-container" class="mb-4 space-y-2 hidden"></div>
+                
+                <div class="bg-gray-50 rounded-xl p-4 mb-4">
+                    <p class="text-sm text-gray-500 text-center mb-2">Rij <span id="current-row-num">1</span></p>
+                    <div id="current-numbers" class="flex flex-wrap gap-2 justify-center min-h-[44px] mb-3"></div>
+                    <input type="tel" id="number-input" class="w-full px-4 py-4 text-2xl text-center bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="Nummer..." autocomplete="off" inputmode="numeric" enterkeyhint="go" pattern="[0-9]*">
+                </div>
+                <p class="text-xs text-gray-400 text-center">Enter = toevoegen · 0 = naar inzet</p>
             </div>
 
             <div id="bet-popup" class="hidden">
-                <div class="text-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-800">Inzet voor rij <span id="bet-row-num">1</span></h3>
-                    <div id="bet-numbers-display" class="flex flex-wrap gap-1.5 justify-center mt-3"></div>
+                <div class="text-center mb-3">
+                    <h3 class="text-lg font-semibold text-gray-800" id="bet-player-name"></h3>
                 </div>
-                <input type="text" id="bet-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="decimal">
-                <p class="text-xs text-gray-400 text-center mt-4">Enter = opslaan en volgende rij</p>
+                
+                <div id="bet-winning-numbers" class="mb-4 p-3 bg-emerald-50 rounded-xl hidden">
+                    <p class="text-xs text-emerald-600 font-medium mb-2 text-center">Winnende nummers</p>
+                    <div id="bet-winning-display" class="flex flex-wrap gap-1 justify-center"></div>
+                </div>
+                
+                <div id="bet-saved-rows" class="mb-4 space-y-2 hidden"></div>
+                
+                <div class="bg-gray-50 rounded-xl p-4 mb-4">
+                    <p class="text-sm text-gray-500 text-center mb-2">Inzet voor rij <span id="bet-row-num">1</span></p>
+                    <div id="bet-numbers-display" class="flex flex-wrap gap-1.5 justify-center mb-3"></div>
+                    <input type="tel" id="bet-input" class="w-full px-4 py-4 text-2xl text-center bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="decimal" enterkeyhint="go" pattern="[0-9.,]*">
+                </div>
+                <p class="text-xs text-gray-400 text-center">Enter = opslaan en volgende rij</p>
             </div>
         </div>
     </div>
@@ -266,12 +292,107 @@ $hasWinningNumbers = !empty($winningData);
         const allPlayers = <?= json_encode($allPlayers ?: []) ?>;
         const winningNumbers = <?= json_encode($winningData ? array_map('intval', $winningData) : []) ?>;
         
+        const multipliers = {
+            1: {1: 2},
+            2: {2: 5},
+            3: {3: 16, 2: 2},
+            4: {4: 20, 3: 5, 2: 1},
+            5: {5: 200, 4: 8, 3: 2},
+            6: {6: 1000, 5: 20, 4: 5, 3: 1},
+            7: {7: 2000, 6: 100, 5: 10, 4: 2, 3: 1},
+            8: {8: 20000, 7: 200, 6: 20, 5: 8, 4: 2},
+            9: {9: 100000, 8: 2000, 7: 100, 6: 8, 5: 2},
+            10: {10: 300000, 9: 4000, 8: 200, 7: 20, 6: 5, 5: 2}
+        };
+        
         let currentBonId = null;
         let currentPlayerId = null;
         let currentPlayerName = '';
         let currentNumbers = [];
         let currentRowNum = 1;
+        let savedRows = [];
         let scraperRetryInterval = null;
+        
+        function calculateWinnings(numbers, bet) {
+            if (winningNumbers.length === 0) return { matches: 0, multiplier: 0, winnings: 0 };
+            const matches = numbers.filter(n => winningNumbers.includes(n)).length;
+            const gameType = numbers.length;
+            const mult = multipliers[gameType]?.[matches] || 0;
+            return { matches, multiplier: mult, winnings: bet * mult };
+        }
+        
+        function renderWinningNumbersInPopup(containerId) {
+            const container = document.getElementById(containerId);
+            const display = document.getElementById(containerId.replace('-numbers', '-display'));
+            if (winningNumbers.length > 0) {
+                container.classList.remove('hidden');
+                display.innerHTML = winningNumbers.map(n => 
+                    `<span class="w-6 h-6 flex items-center justify-center text-xs font-medium bg-emerald-100 text-emerald-700 rounded">${n}</span>`
+                ).join('');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+        
+        function renderSavedRows(containerId) {
+            const container = document.getElementById(containerId);
+            if (savedRows.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            container.classList.remove('hidden');
+            
+            const hasPending = winningNumbers.length === 0;
+            let totalBet = 0;
+            let totalWinnings = 0;
+            
+            const rowsHtml = savedRows.map((row, i) => {
+                totalBet += row.bet;
+                const result = calculateWinnings(row.numbers, row.bet);
+                totalWinnings += result.winnings;
+                const saldo = result.winnings - row.bet;
+                
+                return `
+                    <div class="bg-white border border-gray-100 rounded-lg p-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-500">Rij ${i + 1}</span>
+                            ${hasPending 
+                                ? '<span class="text-xs font-medium text-amber-600">In afwachting</span>'
+                                : `<span class="text-xs font-medium ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
+                            }
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            ${row.numbers.map(n => {
+                                const isMatch = winningNumbers.includes(n);
+                                const cls = hasPending ? 'bg-amber-100 text-amber-700' : (isMatch ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500');
+                                return `<span class="w-6 h-6 flex items-center justify-center text-xs font-medium ${cls} rounded">${n}</span>`;
+                            }).join('')}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            Inzet: €${row.bet.toFixed(2)}${!hasPending ? ` · ${result.matches} goed${result.multiplier > 0 ? ` · ${result.multiplier}x` : ''}` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            const totalSaldo = totalWinnings - totalBet;
+            const totalsHtml = `
+                <div class="bg-gray-100 rounded-lg p-3 mt-2">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Totaal ${savedRows.length} rij${savedRows.length > 1 ? 'en' : ''}</span>
+                        ${hasPending 
+                            ? '<span class="font-medium text-amber-600">In afwachting</span>'
+                            : `<span class="font-medium ${totalSaldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${totalSaldo >= 0 ? '+' : ''}€${totalSaldo.toFixed(2)}</span>`
+                        }
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        Inzet: €${totalBet.toFixed(2)}${!hasPending ? ` · Winst: €${totalWinnings.toFixed(2)}` : ''}
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = rowsHtml + totalsHtml;
+        }
 
         function togglePlayers() {
             const list = document.getElementById('players-list');
@@ -298,6 +419,7 @@ $hasWinningNumbers = !empty($winningData);
             currentPlayerName = '';
             currentNumbers = [];
             currentRowNum = 1;
+            savedRows = [];
             
             showPopup('name-popup');
             const nameInput = document.getElementById('name-input');
@@ -396,6 +518,8 @@ $hasWinningNumbers = !empty($winningData);
             showPopup('number-popup');
             document.getElementById('popup-player-name').textContent = currentPlayerName;
             document.getElementById('current-row-num').textContent = currentRowNum;
+            renderWinningNumbersInPopup('popup-winning-numbers');
+            renderSavedRows('saved-rows-container');
             renderCurrentNumbers();
             const input = document.getElementById('number-input');
             input.value = '';
@@ -452,7 +576,10 @@ $hasWinningNumbers = !empty($winningData);
 
         function goToBetEntry() {
             showPopup('bet-popup');
+            document.getElementById('bet-player-name').textContent = currentPlayerName;
             document.getElementById('bet-row-num').textContent = currentRowNum;
+            renderWinningNumbersInPopup('bet-winning-numbers');
+            renderSavedRows('bet-saved-rows');
             
             const display = document.getElementById('bet-numbers-display');
             display.innerHTML = currentNumbers.map(num => {
@@ -481,6 +608,7 @@ $hasWinningNumbers = !empty($winningData);
                 const data = await response.json();
                 
                 if (data.success) {
+                    savedRows.push({ numbers: [...currentNumbers], bet: bet });
                     currentRowNum++;
                     currentNumbers = [];
                     startNextRow();
@@ -493,6 +621,8 @@ $hasWinningNumbers = !empty($winningData);
         function startNextRow() {
             showPopup('number-popup');
             document.getElementById('current-row-num').textContent = currentRowNum;
+            renderWinningNumbersInPopup('popup-winning-numbers');
+            renderSavedRows('saved-rows-container');
             renderCurrentNumbers();
             const input = document.getElementById('number-input');
             input.value = '';
