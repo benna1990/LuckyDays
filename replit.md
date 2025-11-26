@@ -140,9 +140,10 @@ admins (id, username, password, role)
 ### Teller Perspectief Update
 - **Dagtotaal formule**: saldo = inzet - uitbetaling (teller perspectief)
 - **Teller labels**: "Inzet ontvangen" (+groen), "Uitbetaald aan spelers" (-rood), "Eindsaldo"
-- **Per-klant/bon weergave**: +€X groen = "Te betalen", –€X rood = "Ontvangen"
-- **Kleur logica**: Groen = geld naar speler, Rood = geld van speler
-- **Status labels**: "Winst voor teller" / "Verlies voor teller"
+- **Per-bon weergave**: ROOD = te betalen aan speler, GROEN = ontvangen van speler
+- **Kleur logica**: Rood = kost geld (slecht voor teller), Groen = ontvangt geld (goed voor teller)
+- **Klantoverzicht verwijderd**: Aparte klantoverzicht sectie onderaan dashboard verwijderd
+- **Winnende nummers in twee rijen**: Dashboard en popups tonen 2x10 grid
 
 ### Nummer Bewerken
 - **Editable numbers in popup**: Click on any number to change it (prompt 1-80)
@@ -154,7 +155,6 @@ admins (id, username, password, role)
 ### Dashboard Updates  
 - **Dashboard bon list**: Shows player name prominently instead of "Bon [date]"
 - **Bon detail popup**: Click bon to open popup with all details (rijen, calculations)
-- **Klantoverzicht**: Always visible (not collapsed), shows inzet + saldo per player
 - **Empty bons filtered**: getBonnenByDate excludes bons without rijen
 - **OK buttons**: Visible OK buttons for mobile users (number input, bet input)
 - Replaced visual keyboard with popup-based input
