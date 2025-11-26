@@ -188,7 +188,7 @@ $saldo = $totalWinnings - $totalBet;
                     <p class="text-sm text-gray-500">Voer nummers in</p>
                 </div>
                 <div id="current-numbers" class="flex flex-wrap gap-2 justify-center min-h-[44px] mb-4"></div>
-                <input type="text" id="number-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="Nummer..." autocomplete="off" inputmode="numeric">
+                <input type="tel" id="number-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="Nummer..." autocomplete="off" inputmode="numeric" pattern="[0-9]*">
                 <p class="text-xs text-gray-400 text-center mt-4">Enter = toevoegen · 0 = naar inzet</p>
             </div>
 
@@ -197,7 +197,7 @@ $saldo = $totalWinnings - $totalBet;
                     <h3 class="text-lg font-semibold text-gray-800">Inzet</h3>
                     <div id="bet-numbers-display" class="flex flex-wrap gap-1.5 justify-center mt-3"></div>
                 </div>
-                <input type="text" id="bet-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="decimal">
+                <input type="tel" id="bet-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
                 <p class="text-xs text-gray-400 text-center mt-4">Enter = opslaan</p>
             </div>
         </div>

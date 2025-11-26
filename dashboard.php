@@ -280,7 +280,7 @@ $hasWinningNumbers = !empty($winningData);
                 <div class="bg-gray-50 rounded-xl p-4 mb-4">
                     <p class="text-sm text-gray-500 text-center mb-2">Inzet voor rij <span id="bet-row-num">1</span></p>
                     <div id="bet-numbers-display" class="flex flex-wrap gap-1.5 justify-center mb-3"></div>
-                    <input type="tel" id="bet-input" class="w-full px-4 py-4 text-2xl text-center bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="decimal" enterkeyhint="go" pattern="[0-9.,]*">
+                    <input type="tel" id="bet-input" class="w-full px-4 py-4 text-2xl text-center bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
                 </div>
                 <p class="text-xs text-gray-400 text-center">Enter = opslaan en volgende rij</p>
             </div>
