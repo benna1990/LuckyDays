@@ -103,13 +103,16 @@ game_types (id, name, numbers_count, min_bet, bet_step, multipliers, active)
 ```
 
 ## Recent Changes (Nov 26, 2025)
-- Volledig toetsenbord-gestuurd invoersysteem
-- Nummerblokken 1-80 verwijderd
-- Snelle spelerselectie met realtime zoeken
-- "0" als afsluitsignaal voor nummers en bon
-- Toast notificaties voor feedback
-- Ronde badges voor gekozen nummers
-- Automatische focus flow
+- Spelersnummer automatisch gegenereerd (database ID = spelersnummer)
+- Casino-stijl dagoverzicht met per-speler afrekening
+- Kleurcodering: groen = krijgt geld, rood = moet betalen
+- Dagtotalen sectie met casino saldo
+- "Uitslag ophalen" knop voor handmatige scrape
+- Automatische scrape bij datumwissel (als geen data aanwezig)
+- Weekoverzicht pagina (weekoverzicht.php) met CSV export
+- Speler-detailoverzicht (speler_detail.php) met datumrange
+- Paginering voor alle lijsten (compact, max 20-50 per pagina)
+- Alias veld verwijderd uit speler model
 
 ## Development Notes
 - Session management via PHP sessions
