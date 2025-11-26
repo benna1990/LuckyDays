@@ -1,0 +1,20 @@
+Ik wil aanpassingen aan het bonnen-invoersysteem van de LuckyDays-app. Bouw deze wijzigingen exact zoals hieronder omschreven. Houd het systeem extreem snel, minimalistisch en volledig toetsenbord-gestuurd. Geen extra UI-rommel, alleen de essentie. Implementatie moet foutloos en logisch zijn.
+	1.	Verwijder volledig het getallenoverzicht met nummerblokken 1 t/m 80. Het moet helemaal weg.
+	2.	Bij bon toevoegen moet deze altijd op de geselecteerde datum van het dashboard worden opgeslagen. De datum wordt doorgegeven en gebruikt bij elke rij die wordt opgeslagen.
+	3.	Maak bovenin het invoerscherm een snelle spelerselectie met realtime zoeken. Ik wil een zoekveld waar ik spelers kan filteren op naam en op spelersnummer. Wanneer ik typ, moet de lijst live filteren. Enter selecteert de eerste match. Pijltjes omhoog/omlaag navigeert door de resultaten. Als de speler niet bestaat moet het systeem tonen: “Speler niet gevonden – toevoegen?” en moet ik meteen een nieuwe speler kunnen aanmaken (naam + optioneel spelersnummer + optionele kleur).
+	4.	Na het selecteren van een speler moet de focus direct in het nummerveld komen van de eerste rij.
+	5.	Nummerinvoer werkt uitsluitend via toetsenbord. Geen knoppen. Je typt een nummer (bijvoorbeeld 15) en drukt enter. Dat nummer wordt toegevoegd als een ronde badge. Dit gaat door totdat ik “0” typ. Dubbele nummers zijn niet toegestaan. Backspace verwijdert het laatste ingevoerde nummer. Foute input geeft een kleine korte foutmelding (toast).
+	6.	Alleen de gekozen nummers van de huidige rij moeten zichtbaar zijn in ronde badges. Niet gekozen nummers blijven onzichtbaar. Geen grote grid, geen lijst onderin. Alleen de gekozen nummers.
+	7.	Wanneer ik “0” invoer en enter druk, wordt de nummerrij gesloten. Daarna moet de focus automatisch naar het inzetveld gaan.
+	8.	In het inzetveld typ ik een bedrag en druk enter. Vervolgens wordt die rij opgeslagen: speler_id, datum, numbers (array), inzet, automatisch bepaald speltype, matches, winst.
+	9.	Speltype moet automatisch worden bepaald op basis van het aantal ingevoerde nummers. Dus: 3 nummers → speltype 3, 4 nummers → speltype 4, etc. Geen dropdown en geen handmatige selectie.
+	10.	Na het opslaan van een rij moet het systeem automatisch een nieuwe lege rij openen en de focus moet terug naar het nummerveld van deze nieuwe rij gaan.
+	11.	Winst moet direct na het opslaan van de rij berekend worden. Dit werkt als volgt: tel aantal overeenkomende nummers tussen de ingevoerde rij en de winnende nummers van die dag. Gebruik een multiplier per speltype (deze komt uit een configureerbare tabel). winst = inzet * multiplier. Toon winst rechts van de rij. Werk tevens totalen bij.
+	12.	Wanneer ik bij de eerstvolgende rij in het nummerveld als eerste input “0” typ, betekent dit dat de bon volledig klaar is. Dan moet het systeem stoppen met rijen toevoegen en terug gaan naar de spelerselectie zodat ik een nieuwe speler kan selecteren voor een nieuwe bon.
+	13.	De ronde nummers in de uitslag moeten blijven zoals ze nu zijn, maar de overige nummeroverzichten moeten weg zoals hierboven beschreven. Alleen ronde badges voor gekozen nummers per rij tonen.
+	14.	Zorg dat het scraper-systeem altijd de juiste winnende nummers voor de geselecteerde datum toont. Geen fallback naar de huidige dag. De scraper moet de uitslag ophalen via de URL: https://luckyday.nederlandseloterij.nl/uitslag?date=YYYY-MM-DD. Bij datumwissel moet de UI volledig updaten met de juiste winnende nummers.
+	15.	De backend moet elke rij opslaan met: id, speler_id, date, numbers (json array), inzet, speltype (int), matches, winst, created_at.
+	16.	Edge cases: Wanneer de scraper geen winnende nummers heeft voor de datum moet de winstberekening worden uitgeschakeld en een waarschuwing worden getoond. 0 invoeren voordat er nummers zijn betekent dat de bon direct wordt afgesloten. Dubbele nummers blokkeren. Geen traagheid; alles moet via AJAX realtime reageren.
+
+Maak alles minimalistisch, snel, intuïtief en volledig keyboard-first. Houd het design extreem clean en modern.
+ en ohja
