@@ -2,7 +2,7 @@
 session_start();
 require_once 'config.php';
 
-if (isset($_SESSION['username'])) {
+if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
     header('Location: /dashboard.php');
     exit();
 }
@@ -24,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if ($password === $user['password'] || password_verify($password, $user['password'])) {
                 session_regenerate_id(true);
+                $_SESSION['admin_logged_in'] = true;
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['role'] = $user['role'] ?? 'user';
                 $_SESSION['user_id'] = $user['id'];

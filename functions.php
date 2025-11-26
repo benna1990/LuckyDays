@@ -42,84 +42,7 @@ function scrapeLuckyDayNumbers($date) {
         }
     }
     
-    $url = "https://luckyday.nederlandseloterij.nl/uitslag?date=" . $date;
-    
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language: nl-NL,nl;q=0.9,en;q=0.8'
-    ]);
-    
-    $html = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($httpCode !== 200 || empty($html)) {
-        return ['success' => false, 'error' => 'Kon de pagina niet ophalen (HTTP ' . $httpCode . ')'];
-    }
-    
-    $numbers = [];
-    
-    if (preg_match_all('/<span[^>]*class="[^"]*number[^"]*"[^>]*>(\d+)<\/span>/i', $html, $matches)) {
-        $numbers = array_map('intval', $matches[1]);
-    }
-    
-    if (count($numbers) < 20) {
-        if (preg_match_all('/data-number="(\d+)"/i', $html, $matches)) {
-            $numbers = array_map('intval', $matches[1]);
-        }
-    }
-    
-    if (count($numbers) < 20) {
-        $dom = new HtmlDocument();
-        $dom->load($html);
-        
-        $selectors = [
-            '.winning-numbers .number',
-            '.luckyday-getallen li',
-            '.result-numbers span',
-            '.numbers span',
-            '[class*="number"]'
-        ];
-        
-        foreach ($selectors as $selector) {
-            $elements = $dom->find($selector);
-            if ($elements && count($elements) >= 20) {
-                $numbers = [];
-                foreach ($elements as $el) {
-                    $num = trim($el->plaintext);
-                    if (is_numeric($num) && $num >= 1 && $num <= 80) {
-                        $numbers[] = intval($num);
-                    }
-                }
-                if (count($numbers) >= 20) {
-                    break;
-                }
-            }
-        }
-        
-        $dom->clear();
-    }
-    
-    $numbers = array_unique($numbers);
-    $numbers = array_filter($numbers, function($n) { return $n >= 1 && $n <= 80; });
-    $numbers = array_slice(array_values($numbers), 0, 20);
-    
-    if (count($numbers) === 20) {
-        sort($numbers);
-        return ['success' => true, 'numbers' => $numbers, 'date' => $date];
-    } elseif (count($numbers) > 0) {
-        sort($numbers);
-        return ['success' => true, 'numbers' => $numbers, 'date' => $date, 'warning' => 'Minder dan 20 nummers gevonden (' . count($numbers) . ')'];
-    }
-    
-    return ['success' => false, 'error' => 'Geen uitslag gevonden voor ' . $date];
+    return ['success' => false, 'error' => 'Scraper niet beschikbaar'];
 }
 
 function getOrScrapeWinningNumbers($selected_date, $conn) {
@@ -215,37 +138,120 @@ function calculateWinnings($numbers, $winningNumbers, $bet) {
     ];
 }
 
+// Player functions
 function getAllPlayers($conn) {
-    $result = pg_query($conn, "SELECT id, name, alias, color FROM players ORDER BY name");
+    $result = pg_query($conn, "SELECT id, name, color FROM players ORDER BY name");
     return $result ? pg_fetch_all($result) : [];
 }
 
 function getPlayerById($conn, $id) {
-    $result = pg_query_params($conn, "SELECT id, name, alias, color FROM players WHERE id = $1", [$id]);
+    $result = pg_query_params($conn, "SELECT id, name, color FROM players WHERE id = $1", [$id]);
     return $result && pg_num_rows($result) > 0 ? pg_fetch_assoc($result) : null;
 }
 
-function addPlayer($conn, $name, $alias = '', $color = '#3B82F6') {
-    $result = pg_query_params($conn, 
-        "INSERT INTO players (name, alias, color, created_at) VALUES ($1, $2, $3, NOW()) RETURNING id",
-        [$name, $alias, $color]
-    );
-    return $result ? pg_fetch_assoc($result)['id'] : false;
+function playerNameExists($conn, $name, $excludeId = null) {
+    if ($excludeId) {
+        $result = pg_query_params($conn, "SELECT id FROM players WHERE LOWER(name) = LOWER($1) AND id != $2", [$name, $excludeId]);
+    } else {
+        $result = pg_query_params($conn, "SELECT id FROM players WHERE LOWER(name) = LOWER($1)", [$name]);
+    }
+    return $result && pg_num_rows($result) > 0;
 }
 
-function getRowsByDate($conn, $date) {
+function addPlayer($conn, $name, $color = '#3B82F6') {
+    if (playerNameExists($conn, $name)) {
+        return ['success' => false, 'error' => 'Een speler met deze naam bestaat al'];
+    }
+    
     $result = pg_query_params($conn, 
-        "SELECT b.*, p.name as player_name, p.alias as player_alias, p.color as player_color 
+        "INSERT INTO players (name, color, created_at) VALUES ($1, $2, NOW()) RETURNING id",
+        [$name, $color]
+    );
+    
+    if ($result) {
+        return ['success' => true, 'id' => pg_fetch_assoc($result)['id']];
+    }
+    return ['success' => false, 'error' => 'Kon speler niet toevoegen'];
+}
+
+function updatePlayer($conn, $id, $name, $color) {
+    if (playerNameExists($conn, $name, $id)) {
+        return ['success' => false, 'error' => 'Een speler met deze naam bestaat al'];
+    }
+    
+    $result = pg_query_params($conn, 
+        "UPDATE players SET name = $1, color = $2 WHERE id = $3",
+        [$name, $color, $id]
+    );
+    return ['success' => $result ? true : false];
+}
+
+function deletePlayer($conn, $id) {
+    $result = pg_query_params($conn, "DELETE FROM players WHERE id = $1", [$id]);
+    return $result ? true : false;
+}
+
+// Bon functions (new structure)
+function getBonnenByDate($conn, $date) {
+    $result = pg_query_params($conn, 
+        "SELECT b.*, p.name as player_name, p.color as player_color,
+                (SELECT COUNT(*) FROM rijen r WHERE r.bon_id = b.id) as rijen_count,
+                (SELECT COALESCE(SUM(bet), 0) FROM rijen r WHERE r.bon_id = b.id) as total_bet,
+                (SELECT COALESCE(SUM(winnings), 0) FROM rijen r WHERE r.bon_id = b.id) as total_winnings
          FROM bons b 
          JOIN players p ON b.player_id = p.id 
          WHERE b.date = $1 
-         ORDER BY p.name, b.created_at DESC",
+         ORDER BY b.created_at DESC",
         [$date]
     );
     return $result ? pg_fetch_all($result) : [];
 }
 
-function addRow($conn, $playerId, $date, $numbers, $bet, $winningNumbers) {
+function getBonById($conn, $id) {
+    $result = pg_query_params($conn, 
+        "SELECT b.*, p.name as player_name, p.color as player_color 
+         FROM bons b 
+         JOIN players p ON b.player_id = p.id 
+         WHERE b.id = $1",
+        [$id]
+    );
+    return $result && pg_num_rows($result) > 0 ? pg_fetch_assoc($result) : null;
+}
+
+function createBon($conn, $playerId, $date, $name = null) {
+    if (!$name) {
+        $maanden = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+        $day = date('d', strtotime($date));
+        $month = $maanden[date('n', strtotime($date)) - 1];
+        $name = "Bon $day $month";
+    }
+    
+    $result = pg_query_params($conn,
+        "INSERT INTO bons (player_id, name, date, created_at) VALUES ($1, $2, $3, NOW()) RETURNING id",
+        [$playerId, $name, $date]
+    );
+    
+    return $result ? pg_fetch_assoc($result)['id'] : false;
+}
+
+function updateBonName($conn, $id, $name) {
+    return pg_query_params($conn, "UPDATE bons SET name = $1 WHERE id = $2", [$name, $id]);
+}
+
+function deleteBon($conn, $id) {
+    return pg_query_params($conn, "DELETE FROM bons WHERE id = $1", [$id]);
+}
+
+// Rij functions
+function getRijenByBonId($conn, $bonId) {
+    $result = pg_query_params($conn, 
+        "SELECT * FROM rijen WHERE bon_id = $1 ORDER BY created_at ASC",
+        [$bonId]
+    );
+    return $result ? pg_fetch_all($result) : [];
+}
+
+function addRij($conn, $bonId, $numbers, $bet, $winningNumbers = []) {
     $numbersArray = is_array($numbers) ? $numbers : explode(',', $numbers);
     $winningArray = is_array($winningNumbers) ? $winningNumbers : explode(',', $winningNumbers);
     
@@ -254,11 +260,10 @@ function addRow($conn, $playerId, $date, $numbers, $bet, $winningNumbers) {
     $numbersStr = implode(',', $numbersArray);
     
     $insertResult = pg_query_params($conn,
-        "INSERT INTO bons (player_id, date, numbers, bet, game_type, matches, multiplier, winnings, created_at) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING id",
+        "INSERT INTO rijen (bon_id, numbers, bet, game_type, matches, multiplier, winnings, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id",
         [
-            $playerId, 
-            $date, 
+            $bonId, 
             $numbersStr, 
             $bet, 
             $result['game_type'],
@@ -271,33 +276,64 @@ function addRow($conn, $playerId, $date, $numbers, $bet, $winningNumbers) {
     return $insertResult ? pg_fetch_assoc($insertResult)['id'] : false;
 }
 
-function deleteRow($conn, $id) {
-    return pg_query_params($conn, "DELETE FROM bons WHERE id = $1", [$id]);
+function deleteRij($conn, $id) {
+    return pg_query_params($conn, "DELETE FROM rijen WHERE id = $1", [$id]);
 }
 
+function recalculateRijWinnings($conn, $rijId, $winningNumbers) {
+    $result = pg_query_params($conn, "SELECT * FROM rijen WHERE id = $1", [$rijId]);
+    if (!$result || pg_num_rows($result) == 0) return false;
+    
+    $rij = pg_fetch_assoc($result);
+    $numbers = explode(',', $rij['numbers']);
+    $winningArray = is_array($winningNumbers) ? $winningNumbers : explode(',', $winningNumbers);
+    
+    $calcResult = calculateWinnings($numbers, $winningArray, $rij['bet']);
+    
+    pg_query_params($conn,
+        "UPDATE rijen SET matches = $1, multiplier = $2, winnings = $3, game_type = $4 WHERE id = $5",
+        [$calcResult['matches'], $calcResult['multiplier'], $calcResult['winnings'], $calcResult['game_type'], $rijId]
+    );
+    
+    return $calcResult;
+}
+
+function recalculateAllRijenForDate($conn, $date, $winningNumbers) {
+    $bonnen = getBonnenByDate($conn, $date);
+    if (!$bonnen) return;
+    
+    foreach ($bonnen as $bon) {
+        $rijen = getRijenByBonId($conn, $bon['id']);
+        if ($rijen) {
+            foreach ($rijen as $rij) {
+                recalculateRijWinnings($conn, $rij['id'], $winningNumbers);
+            }
+        }
+    }
+}
+
+// Stats functions
 function getDayStats($conn, $date) {
     $result = pg_query_params($conn,
         "SELECT 
-            COUNT(*) as total_rows,
-            COALESCE(SUM(bet), 0) as total_bet,
-            COALESCE(SUM(winnings), 0) as total_winnings
-         FROM bons WHERE date = $1",
+            (SELECT COUNT(*) FROM bons WHERE date = $1) as total_bons,
+            COUNT(*) as total_rijen,
+            COALESCE(SUM(r.bet), 0) as total_bet,
+            COALESCE(SUM(r.winnings), 0) as total_winnings
+         FROM rijen r
+         JOIN bons b ON r.bon_id = b.id
+         WHERE b.date = $1",
         [$date]
     );
-    return $result ? pg_fetch_assoc($result) : ['total_rows' => 0, 'total_bet' => 0, 'total_winnings' => 0];
+    return $result ? pg_fetch_assoc($result) : ['total_bons' => 0, 'total_rijen' => 0, 'total_bet' => 0, 'total_winnings' => 0];
 }
 
-function getPlayerStats($conn, $date) {
+function getPlayersByDate($conn, $date) {
     $result = pg_query_params($conn,
-        "SELECT 
-            p.id, p.name, p.alias, p.color,
-            COUNT(b.id) as total_rows,
-            COALESCE(SUM(b.bet), 0) as total_bet,
-            COALESCE(SUM(b.winnings), 0) as total_winnings
+        "SELECT DISTINCT p.id, p.name, p.color
          FROM players p
-         LEFT JOIN bons b ON p.id = b.player_id AND b.date = $1
-         GROUP BY p.id, p.name, p.alias, p.color
-         HAVING COUNT(b.id) > 0
+         JOIN bons b ON p.id = b.player_id
+         WHERE b.date = $1
          ORDER BY p.name",
         [$date]
     );
@@ -307,14 +343,16 @@ function getPlayerStats($conn, $date) {
 function getPlayerDayStats($conn, $date) {
     $result = pg_query_params($conn,
         "SELECT 
-            p.id, p.name, p.alias, p.color,
-            COUNT(b.id) as total_rows,
-            COALESCE(SUM(b.bet), 0) as total_bet,
-            COALESCE(SUM(b.winnings), 0) as total_winnings,
-            COALESCE(SUM(b.winnings), 0) - COALESCE(SUM(b.bet), 0) as saldo
+            p.id, p.name, p.color,
+            COUNT(DISTINCT b.id) as total_bons,
+            COUNT(r.id) as total_rijen,
+            COALESCE(SUM(r.bet), 0) as total_bet,
+            COALESCE(SUM(r.winnings), 0) as total_winnings,
+            COALESCE(SUM(r.winnings), 0) - COALESCE(SUM(r.bet), 0) as saldo
          FROM players p
          JOIN bons b ON p.id = b.player_id AND b.date = $1
-         GROUP BY p.id, p.name, p.alias, p.color
+         LEFT JOIN rijen r ON r.bon_id = b.id
+         GROUP BY p.id, p.name, p.color
          ORDER BY saldo DESC",
         [$date]
     );
@@ -324,14 +362,16 @@ function getPlayerDayStats($conn, $date) {
 function getWeekStats($conn, $start_date, $end_date) {
     $result = pg_query_params($conn,
         "SELECT 
-            p.id, p.name, p.alias, p.color,
-            COUNT(b.id) as total_rows,
-            COALESCE(SUM(b.bet), 0) as total_bet,
-            COALESCE(SUM(b.winnings), 0) as total_winnings,
-            COALESCE(SUM(b.winnings), 0) - COALESCE(SUM(b.bet), 0) as saldo
+            p.id, p.name, p.color,
+            COUNT(DISTINCT b.id) as total_bons,
+            COUNT(r.id) as total_rijen,
+            COALESCE(SUM(r.bet), 0) as total_bet,
+            COALESCE(SUM(r.winnings), 0) as total_winnings,
+            COALESCE(SUM(r.winnings), 0) - COALESCE(SUM(r.bet), 0) as saldo
          FROM players p
          JOIN bons b ON p.id = b.player_id AND b.date BETWEEN $1 AND $2
-         GROUP BY p.id, p.name, p.alias, p.color
+         LEFT JOIN rijen r ON r.bon_id = b.id
+         GROUP BY p.id, p.name, p.color
          ORDER BY saldo DESC",
         [$start_date, $end_date]
     );
@@ -341,52 +381,17 @@ function getWeekStats($conn, $start_date, $end_date) {
 function getWeekTotals($conn, $start_date, $end_date) {
     $result = pg_query_params($conn,
         "SELECT 
-            COUNT(*) as total_rows,
-            COALESCE(SUM(bet), 0) as total_bet,
-            COALESCE(SUM(winnings), 0) as total_winnings,
-            COALESCE(SUM(winnings), 0) - COALESCE(SUM(bet), 0) as saldo
-         FROM bons WHERE date BETWEEN $1 AND $2",
+            (SELECT COUNT(*) FROM bons WHERE date BETWEEN $1 AND $2) as total_bons,
+            COUNT(r.id) as total_rijen,
+            COALESCE(SUM(r.bet), 0) as total_bet,
+            COALESCE(SUM(r.winnings), 0) as total_winnings,
+            COALESCE(SUM(r.winnings), 0) - COALESCE(SUM(r.bet), 0) as saldo
+         FROM rijen r
+         JOIN bons b ON r.bon_id = b.id
+         WHERE b.date BETWEEN $1 AND $2",
         [$start_date, $end_date]
     );
-    return $result ? pg_fetch_assoc($result) : ['total_rows' => 0, 'total_bet' => 0, 'total_winnings' => 0, 'saldo' => 0];
-}
-
-function getPlayerHistory($conn, $player_id, $start_date = null, $end_date = null) {
-    $sql = "SELECT b.*, p.name as player_name, p.alias as player_alias, p.color as player_color 
-            FROM bons b 
-            JOIN players p ON b.player_id = p.id 
-            WHERE b.player_id = $1";
-    $params = [$player_id];
-    
-    if ($start_date && $end_date) {
-        $sql .= " AND b.date BETWEEN $2 AND $3";
-        $params[] = $start_date;
-        $params[] = $end_date;
-    }
-    
-    $sql .= " ORDER BY b.date DESC, b.created_at DESC LIMIT 500";
-    
-    $result = pg_query_params($conn, $sql, $params);
-    return $result ? pg_fetch_all($result) : [];
-}
-
-function getPlayerTotals($conn, $player_id, $start_date = null, $end_date = null) {
-    $sql = "SELECT 
-                COUNT(*) as total_rows,
-                COALESCE(SUM(bet), 0) as total_bet,
-                COALESCE(SUM(winnings), 0) as total_winnings,
-                COALESCE(SUM(winnings), 0) - COALESCE(SUM(bet), 0) as saldo
-            FROM bons WHERE player_id = $1";
-    $params = [$player_id];
-    
-    if ($start_date && $end_date) {
-        $sql .= " AND date BETWEEN $2 AND $3";
-        $params[] = $start_date;
-        $params[] = $end_date;
-    }
-    
-    $result = pg_query_params($conn, $sql, $params);
-    return $result ? pg_fetch_assoc($result) : ['total_rows' => 0, 'total_bet' => 0, 'total_winnings' => 0, 'saldo' => 0];
+    return $result ? pg_fetch_assoc($result) : ['total_bons' => 0, 'total_rijen' => 0, 'total_bet' => 0, 'total_winnings' => 0, 'saldo' => 0];
 }
 
 function getISOWeekRange($date) {

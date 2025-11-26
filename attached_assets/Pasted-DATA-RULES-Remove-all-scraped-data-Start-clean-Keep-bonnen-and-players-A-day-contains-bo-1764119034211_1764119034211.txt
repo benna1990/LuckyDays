@@ -1,0 +1,107 @@
+DATA RULES
+	•	Remove all scraped data. Start clean.
+	•	Keep bonnen and players.
+	•	A day contains bonnen (not “rows”).
+	•	A bon can contain multiple “rijen”.
+	•	Players may NOT have identical names.
+	•	A daily overview must NOT show people as icons/cards—only a simple summary list at the bottom that can be expanded and edited.
+
+⸻
+
+PAGES & UI REQUIREMENTS
+
+1. Home / Dashboard
+	•	Show a clean day overview (no persons here).
+	•	Section: “Bonnen van deze dag”
+	•	Each bon shows:
+	•	Bon name
+	•	Total amount
+	•	Number of rijen
+	•	A button: “Nieuwe bon toevoegen”
+	•	At the bottom:
+	•	A small collapsed section “Spelers van vandaag”
+	•	When expanded: editable list of players
+	•	No avatars, just names and edit/delete actions
+
+⸻
+
+2. Bon Details Page
+
+A bon contains multiple rijen.
+
+Each rij has:
+	•	Numbers
+	•	Result
+	•	Win/loss amount
+
+Notes:
+	•	Input system must not show all numbers together in a big block.
+	•	Only the numbers that are actually selected must become blocks.
+	•	Numbers that don’t match winning numbers stay white.
+	•	Winning numbers get a highlight color.
+	•	Win/loss is calculated after the rij is added.
+
+⸻
+
+3. Editor / Keyboard Tips
+
+Re-add the nice styling of the previous “keyboard tips” you liked:
+	•	Small boxes
+	•	Highlighted text style (like code formatting)
+	•	Minimal, elegant
+
+⸻
+
+4. Beheerpagina (Admin Page)
+
+This MUST be rebuilt in the new style:
+	•	Clean minimal cards
+	•	List of players (unique names enforced)
+	•	List of all bonnen
+	•	Buttons styled in the same theme as the rest of the redesign
+
+⸻
+
+NAMING RULES
+	•	No “casino”
+	•	Days → Bonnen
+	•	Bonnen contain rijen
+	•	Players → must be unique by name
+
+⸻
+
+FUNCTIONAL REQUIREMENTS
+
+Bonnen
+	•	Can be created per day
+	•	Each bon can have multiple rijen
+	•	Rijen calculate outcome after submitting
+
+Daily Overview
+	•	Displays bonnen
+	•	Shows a hidden list of players at the bottom
+	•	The list expands when clicked
+
+Players
+	•	No duplicate names
+	•	Editable
+	•	Related to day, not globally duplicated
+
+⸻
+
+STYLE
+
+Use the same style as your previous version that looked good:
+	•	Clean layout
+	•	TailwindCSS
+	•	Soft shadows
+	•	Lovely card spacing
+	•	Text with code-block-style highlights for small tips
+
+⸻
+
+REMOVE / BLOCK
+	•	No scraped data
+	•	No casino wording
+	•	No person icons/images
+	•	No old UI leftovers
