@@ -33,6 +33,15 @@ function saveWinningNumbersToDatabase($selected_date, $winning_numbers, $conn) {
 }
 
 function scrapeLuckyDayNumbers($date) {
+    $output = shell_exec("node scraper.js " . escapeshellarg($date) . " 2>&1");
+    
+    if ($output) {
+        $result = json_decode(trim($output), true);
+        if ($result && isset($result['success'])) {
+            return $result;
+        }
+    }
+    
     $url = "https://luckyday.nederlandseloterij.nl/uitslag?date=" . $date;
     
     $ch = curl_init();
