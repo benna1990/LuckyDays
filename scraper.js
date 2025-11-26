@@ -36,93 +36,68 @@ async function scrapeLuckyDayNumbers(date) {
         const monthName = dutchMonths[targetDate.getMonth()];
         const year = targetDate.getFullYear();
         
-        const datePatterns = [
-            `${dayName} ${day} ${monthName} ${year}`,
-            `${day} ${monthName} ${year}`,
-            `${dayName} ${day} ${monthName}`
-        ];
+        const datePattern = `${dayName} ${day} ${monthName} ${year}`.toLowerCase();
+        const shortDatePattern = `${day} ${monthName} ${year}`.toLowerCase();
         
-        const result = await page.evaluate((patterns, targetDateStr) => {
-            const sections = document.querySelectorAll('h2');
-            
-            for (const section of sections) {
-                const text = section.textContent.toLowerCase();
-                
-                const matchesDate = patterns.some(pattern => text.includes(pattern.toLowerCase()));
-                
-                if (matchesDate && text.includes('lucky day uitslag')) {
-                    let container = section.parentElement;
-                    let numbers = [];
-                    let bonusNumber = null;
-                    
-                    const lists = container.querySelectorAll('ul, ol');
-                    for (const list of lists) {
-                        const items = list.querySelectorAll('li');
-                        items.forEach(item => {
-                            const num = parseInt(item.textContent.trim());
-                            if (!isNaN(num) && num >= 1 && num <= 80 && !numbers.includes(num)) {
-                                numbers.push(num);
-                            }
-                        });
-                        if (numbers.length >= 20) break;
-                    }
-                    
-                    const allText = container.textContent;
-                    const bonusMatch = allText.match(/bonusgetal\s*[\n\r]*\s*(\d+)/i);
-                    if (bonusMatch) {
-                        bonusNumber = parseInt(bonusMatch[1]);
-                    }
-                    
-                    if (numbers.length >= 20) {
-                        return {
-                            numbers: numbers.slice(0, 20).sort((a, b) => a - b),
-                            bonusNumber: bonusNumber,
-                            dateFound: text
-                        };
-                    }
-                }
-            }
-            
-            const allNumbers = [];
+        const result = await page.evaluate((datePattern, shortDatePattern) => {
             const h2Elements = document.querySelectorAll('h2');
             
             for (const h2 of h2Elements) {
-                if (h2.textContent.toLowerCase().includes('lucky day uitslag')) {
-                    let sibling = h2.nextElementSibling;
-                    while (sibling && sibling.tagName !== 'H2') {
-                        const items = sibling.querySelectorAll('li');
-                        items.forEach(item => {
-                            const num = parseInt(item.textContent.trim());
-                            if (!isNaN(num) && num >= 1 && num <= 80) {
-                                allNumbers.push(num);
-                            }
-                        });
-                        sibling = sibling.nextElementSibling;
+                const headerText = h2.textContent.toLowerCase().trim();
+                
+                if (!headerText.includes('lucky day uitslag')) continue;
+                
+                const matchesDate = headerText.includes(datePattern) || headerText.includes(shortDatePattern);
+                
+                if (!matchesDate) continue;
+                
+                let numbers = [];
+                let bonusNumber = null;
+                
+                let sibling = h2.nextElementSibling;
+                while (sibling) {
+                    if (sibling.tagName === 'H2') break;
+                    
+                    const items = sibling.querySelectorAll('li');
+                    items.forEach(item => {
+                        const num = parseInt(item.textContent.trim());
+                        if (!isNaN(num) && num >= 1 && num <= 80 && !numbers.includes(num)) {
+                            numbers.push(num);
+                        }
+                    });
+                    
+                    const bonusEl = sibling.querySelector('.luckyday-bonusgetal span');
+                    if (bonusEl) {
+                        const bonusNum = parseInt(bonusEl.textContent.trim());
+                        if (!isNaN(bonusNum) && bonusNum >= 1 && bonusNum <= 80) {
+                            bonusNumber = bonusNum;
+                        }
                     }
-                    break;
+                    
+                    sibling = sibling.nextElementSibling;
+                }
+                
+                if (numbers.length >= 20) {
+                    return {
+                        success: true,
+                        numbers: numbers.slice(0, 20).sort((a, b) => a - b),
+                        bonusNumber: bonusNumber,
+                        dateFound: headerText
+                    };
                 }
             }
             
-            if (allNumbers.length >= 20) {
-                return {
-                    numbers: allNumbers.slice(0, 20).sort((a, b) => a - b),
-                    bonusNumber: null,
-                    warning: 'Datum niet exact gematcht, eerste resultaat gebruikt'
-                };
-            }
-            
-            return null;
-        }, datePatterns, date);
+            return { success: false };
+        }, datePattern, shortDatePattern);
         
         await browser.close();
         
-        if (result && result.numbers && result.numbers.length >= 20) {
+        if (result.success && result.numbers && result.numbers.length >= 20) {
             return {
                 success: true,
                 numbers: result.numbers,
                 bonusNumber: result.bonusNumber,
-                date: date,
-                warning: result.warning
+                date: date
             };
         }
         
