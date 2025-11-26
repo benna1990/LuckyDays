@@ -19,6 +19,22 @@ if ($scrapeResult['success']) {
     recalculateAllRijenForDate($conn, $date, $scrapeResult['numbers']);
     echo json_encode(['success' => true, 'numbers' => $scrapeResult['numbers']]);
 } else {
-    echo json_encode(['success' => false, 'error' => $scrapeResult['error'] ?? 'Kon uitslag niet ophalen']);
+    $today = date('Y-m-d');
+    $isToday = ($date === $today);
+    $currentHour = (int)date('H');
+    
+    if ($isToday && $currentHour < 19) {
+        echo json_encode([
+            'success' => false, 
+            'error' => 'Trekking is om 19:00 uur',
+            'retry' => false
+        ]);
+    } else {
+        echo json_encode([
+            'success' => false, 
+            'error' => $scrapeResult['error'] ?? 'Uitslag niet gevonden',
+            'retry' => true
+        ]);
+    }
 }
 ?>

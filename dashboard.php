@@ -561,15 +561,29 @@ $hasWinningNumbers = !empty($winningData);
                     
                     setTimeout(() => location.reload(), 1000);
                 } else {
-                    throw new Error(data.error || 'Kon nummers niet ophalen');
+                    statusEl.classList.remove('loading');
+                    statusEl.classList.add('error');
+                    
+                    const errorMsg = data.error || 'Uitslag niet gevonden';
+                    statusEl.textContent = errorMsg;
+                    
+                    if (!isRetry) {
+                        container.innerHTML = `<p class="text-sm text-amber-600">${errorMsg}</p>`;
+                    }
+                    
+                    if (data.retry !== false) {
+                        startScraperRetry();
+                    } else {
+                        stopScraperRetry();
+                    }
                 }
             } catch (e) {
                 statusEl.classList.remove('loading');
                 statusEl.classList.add('error');
-                statusEl.textContent = 'Tijdelijk niet beschikbaar';
+                statusEl.textContent = 'Verbindingsfout';
                 
                 if (!isRetry) {
-                    container.innerHTML = '<p class="text-sm text-amber-600">Scraper tijdelijk niet beschikbaar</p>';
+                    container.innerHTML = '<p class="text-sm text-amber-600">Kon geen verbinding maken</p>';
                 }
                 
                 startScraperRetry();
