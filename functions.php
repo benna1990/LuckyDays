@@ -149,6 +149,11 @@ function getPlayerById($conn, $id) {
     return $result && pg_num_rows($result) > 0 ? pg_fetch_assoc($result) : null;
 }
 
+function getPlayerByName($conn, $name) {
+    $result = pg_query_params($conn, "SELECT id, name, color FROM players WHERE LOWER(name) = LOWER($1)", [$name]);
+    return $result && pg_num_rows($result) > 0 ? pg_fetch_assoc($result) : null;
+}
+
 function playerNameExists($conn, $name, $excludeId = null) {
     if ($excludeId) {
         $result = pg_query_params($conn, "SELECT id FROM players WHERE LOWER(name) = LOWER($1) AND id != $2", [$name, $excludeId]);

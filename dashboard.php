@@ -220,19 +220,8 @@ $hasWinningNumbers = !empty($winningData);
                 <input type="hidden" name="date" value="<?= $selected_date ?>">
                 
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Speler</label>
-                    <select name="player_id" required class="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500">
-                        <option value="">Kies een speler...</option>
-                        <?php 
-                        if ($allPlayers && is_array($allPlayers)):
-                            foreach ($allPlayers as $player): 
-                        ?>
-                            <option value="<?= $player['id'] ?>"><?= htmlspecialchars($player['name']) ?></option>
-                        <?php 
-                            endforeach;
-                        endif; 
-                        ?>
-                    </select>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Spelernaam</label>
+                    <input type="text" name="player_name" required placeholder="Typ de naam van de speler" class="w-full px-4 py-3 bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500" autocomplete="off">
                 </div>
                 
                 <div class="mb-6">
