@@ -29,11 +29,15 @@ try {
             throw new Exception('Ongeldige nummers');
         }
         
+        $validatedNumbers = [];
         foreach ($numbers as $num) {
-            if (!is_int($num) || $num < 1 || $num > 80) {
+            $intNum = intval($num);
+            if ($intNum < 1 || $intNum > 80) {
                 throw new Exception('Nummers moeten tussen 1 en 80 zijn');
             }
+            $validatedNumbers[] = $intNum;
         }
+        $numbers = $validatedNumbers;
         
         $stmt = $conn->prepare("SELECT r.id, r.bon_id, r.bet, b.date FROM rijen r JOIN bons b ON r.bon_id = b.id WHERE r.id = ?");
         $stmt->execute([$rijId]);
