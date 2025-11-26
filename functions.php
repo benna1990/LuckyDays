@@ -236,6 +236,7 @@ function getBonnenByDate($conn, $date) {
          FROM bons b 
          JOIN players p ON b.player_id = p.id 
          WHERE b.date = $1 
+         AND EXISTS (SELECT 1 FROM rijen r WHERE r.bon_id = b.id)
          ORDER BY b.created_at DESC",
         [$date]
     );

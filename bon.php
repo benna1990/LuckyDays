@@ -188,8 +188,11 @@ $saldo = $totalWinnings - $totalBet;
                     <p class="text-sm text-gray-500">Voer nummers in</p>
                 </div>
                 <div id="current-numbers" class="flex flex-wrap gap-2 justify-center min-h-[44px] mb-4"></div>
-                <input type="text" id="number-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="Nummer..." autocomplete="off" inputmode="numeric" enterkeyhint="done">
-                <p class="text-xs text-gray-400 text-center mt-4">Enter = toevoegen · 0 = naar inzet</p>
+                <div class="flex gap-2">
+                    <input type="text" id="number-input" class="flex-1 px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="Nummer..." autocomplete="off" inputmode="numeric" enterkeyhint="done">
+                    <button type="button" id="number-ok-btn" class="px-6 py-4 bg-emerald-500 text-white text-xl font-semibold rounded-xl hover:bg-emerald-600 active:bg-emerald-700 transition-colors">OK</button>
+                </div>
+                <p class="text-xs text-gray-400 text-center mt-4">OK/Enter = toevoegen · 0 = naar inzet</p>
             </div>
 
             <div id="bet-popup" class="hidden">
@@ -197,8 +200,11 @@ $saldo = $totalWinnings - $totalBet;
                     <h3 class="text-lg font-semibold text-gray-800">Inzet</h3>
                     <div id="bet-numbers-display" class="flex flex-wrap gap-1.5 justify-center mt-3"></div>
                 </div>
-                <input type="text" id="bet-input" class="w-full px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="decimal" enterkeyhint="done">
-                <p class="text-xs text-gray-400 text-center mt-4">Enter = opslaan</p>
+                <div class="flex gap-2">
+                    <input type="text" id="bet-input" class="flex-1 px-4 py-4 text-2xl text-center bg-gray-50 border-0 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="decimal" enterkeyhint="done">
+                    <button type="button" id="bet-ok-btn" class="px-6 py-4 bg-emerald-500 text-white text-xl font-semibold rounded-xl hover:bg-emerald-600 active:bg-emerald-700 transition-colors">OK</button>
+                </div>
+                <p class="text-xs text-gray-400 text-center mt-4">OK/Enter = opslaan</p>
             </div>
         </div>
     </div>
@@ -243,39 +249,47 @@ $saldo = $totalWinnings - $totalBet;
             }).join('');
         }
 
+        function handleNumberInput() {
+            const input = document.getElementById('number-input');
+            const val = input.value.trim();
+            
+            if (val === '0' || val === '') {
+                if (currentNumbers.length > 0) {
+                    goToBetEntry();
+                }
+                return;
+            }
+            
+            const num = parseInt(val);
+            if (isNaN(num) || num < 1 || num > 80) {
+                input.value = '';
+                return;
+            }
+            
+            if (currentNumbers.includes(num)) {
+                input.value = '';
+                return;
+            }
+            
+            if (currentNumbers.length >= 10) {
+                input.value = '';
+                return;
+            }
+            
+            currentNumbers.push(num);
+            renderCurrentNumbers();
+            input.value = '';
+            input.focus();
+        }
+
         document.getElementById('number-input').addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const val = this.value.trim();
-                
-                if (val === '0' || val === '') {
-                    if (currentNumbers.length > 0) {
-                        goToBetEntry();
-                    }
-                    return;
-                }
-                
-                const num = parseInt(val);
-                if (isNaN(num) || num < 1 || num > 80) {
-                    this.value = '';
-                    return;
-                }
-                
-                if (currentNumbers.includes(num)) {
-                    this.value = '';
-                    return;
-                }
-                
-                if (currentNumbers.length >= 10) {
-                    this.value = '';
-                    return;
-                }
-                
-                currentNumbers.push(num);
-                renderCurrentNumbers();
-                this.value = '';
+                handleNumberInput();
             }
         });
+        
+        document.getElementById('number-ok-btn').addEventListener('click', handleNumberInput);
 
         function goToBetEntry() {
             showPopup('bet-popup');
@@ -293,26 +307,33 @@ $saldo = $totalWinnings - $totalBet;
             input.select();
         }
 
+        async function handleBetInput() {
+            const input = document.getElementById('bet-input');
+            let bet = parseFloat(input.value.replace(',', '.'));
+            if (isNaN(bet) || bet < 0.50) bet = 1.00;
+            
+            const response = await fetch('api/add_rij.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `bon_id=${bonId}&numbers=${currentNumbers.join(',')}&bet=${bet}`
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.error || 'Kon rij niet opslaan');
+            }
+        }
+
         document.getElementById('bet-input').addEventListener('keydown', async function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                let bet = parseFloat(this.value.replace(',', '.'));
-                if (isNaN(bet) || bet < 0.50) bet = 1.00;
-                
-                const response = await fetch('api/add_rij.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `bon_id=${bonId}&numbers=${currentNumbers.join(',')}&bet=${bet}`
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert(data.error || 'Kon rij niet opslaan');
-                }
+                handleBetInput();
             }
         });
+        
+        document.getElementById('bet-ok-btn').addEventListener('click', handleBetInput);
 
         async function deleteRij(rijId) {
             if (!confirm('Rij verwijderen?')) return;

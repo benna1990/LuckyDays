@@ -1,0 +1,23 @@
+Dit systeem is een intern invoerportaal voor LuckyDay bonnen. Klanten zien dit nooit, het is puur voor degene die de bonnen invoert om per dag te kunnen zien wat er aan winst of verlies is voor de teller. Alle tellingen moeten dus kloppen, inclusief totale inzet, totale winst of verlies per bon, per klant en per dag. Rood betekent dat de teller geld moet betalen, groen dat de teller geld krijgt.
+
+Een bon bestaat uit meerdere rijen. Elke rij bevat maximaal tien nummers en een inzet. De invoer werkt zo: eerst vul je de klantnaam in. Tijdens typen worden bestaande klanten gefilterd. Druk je op enter, dan selecteert het systeem de juiste klant. Bestaat de naam niet, dan wordt er automatisch een nieuwe klant aangemaakt met een unieke kleur. Klanten mogen geen identieke namen hebben.
+
+Na kiezen van de klant start de invoer van rijen. De interface toont een knop of popup waarin de nummers van een rij worden ingevoerd. Nummers worden ingevoerd via toetsenbord of numpad. Tijdens invoer worden de nummers in blokjes getoond. Dubbele nummers worden meteen afgekeurd. Meer dan tien nummers mag niet. Zodra de teller klaar is met nummers invoeren, drukt hij op 0 (nul). Het systeem gaat dan automatisch naar de inzet van die rij. Na invoer van de inzet en enter start een nieuwe rij. Als de nieuwe rij begint en het eerste nummer dat wordt ingevoerd is 0, dan is de bon klaar. Na afronding van de bon springt het systeem automatisch terug naar het invoerveld van de klantnaam om een nieuwe bon te starten. Als bij klantnaam enter wordt gedrukt terwijl het veld leeg is, stopt de invoer helemaal.
+
+Het systeem moet automatisch bepalen welk spel het is op basis van het aantal nummers in de rij. Dus drie nummers betekent een 3-spel, vijf nummers betekent een 5-spel, enzovoort. De teller hoeft dus nooit zelf het spel te kiezen.
+
+Elke rij moet worden gecontroleerd tegen de winnende nummers van de dag. Het systeem moet automatisch de winnende nummers ophalen van de LuckyDay website van de geselecteerde datum. De datum op de homepage bepaalt welk resultaat moet worden opgehaald. Als de scraper niet beschikbaar is, moet het systeem “scraper niet beschikbaar” tonen maar blijven proberen om het later opnieuw te laden.
+
+De winstberekening per rij werkt zo: eerst wordt bepaald hoeveel nummers goed zijn. Op basis daarvan berekent het systeem de uitbetaling. De winst is de uitbetaling minus de inzet. Dus winst of verlies wordt altijd per rij bepaald. Groen als het positief is, rood als het negatief is.
+
+Een bon bestaat uit meerdere rijen, dus de winst/verlies van alle rijen moet bij elkaar worden opgeteld tot één totaal. Dat totaal bepaalt of de teller die bon moet betalen (rood) of juist krijgt (groen). Elke bon in het dagoverzicht moet een duidelijke gekleurde indicator hebben: groen als positief, rood als negatief.
+
+Elke klant kan meerdere bonnen hebben op dezelfde dag. Het systeem moet alle bonnen optellen per klant en laten zien wat die klant totaal oplevert of kost. Ook hier geldt: groen is winst voor de teller, rood is verlies voor de teller.
+
+Onderaan of bovenaan de pagina moet de totaalbalans van de gehele dag staan. Dit is de som van alle klanten samen. Ook hier wordt groen gebruikt als de teller die dag geld verdient, en rood als de teller die dag moet betalen.
+
+Als je op een bon klikt, moet er geen nieuwe pagina worden geopend. In plaats daarvan opent een popup. Deze popup toont alle rijen van die bon, met duidelijk per rij de nummers, hoeveel goed, de inzet, de winst/verlies, en het totaal van de hele bon. In de popup moeten opties zitten om de bon te bewerken of te verwijderen.
+
+De UI moet eenvoudig, overzichtelijk en snel zijn. Geen woorden als “casino” tonen. Alles moet realtime reageren zonder dat de pagina opnieuw moet laden.
+
+Ook moeten bonnen zonder rijen nooit getoond worden of opgeslagen.

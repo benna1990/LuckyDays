@@ -260,9 +260,12 @@ $hasWinningNumbers = !empty($winningData);
                 <div class="bg-gray-50 rounded-xl p-4 mb-4">
                     <p class="text-sm text-gray-500 text-center mb-2">Rij <span id="current-row-num">1</span></p>
                     <div id="current-numbers" class="flex flex-wrap gap-2 justify-center min-h-[44px] mb-3"></div>
-                    <input type="text" id="number-input" class="w-full px-4 py-4 text-2xl text-center bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="Nummer..." autocomplete="off" inputmode="numeric" enterkeyhint="done">
+                    <div class="flex gap-2">
+                        <input type="text" id="number-input" class="flex-1 px-4 py-4 text-2xl text-center bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="Nummer..." autocomplete="off" inputmode="numeric" enterkeyhint="done">
+                        <button type="button" id="number-ok-btn" class="px-6 py-4 bg-emerald-500 text-white text-xl font-semibold rounded-xl hover:bg-emerald-600 active:bg-emerald-700 transition-colors">OK</button>
+                    </div>
                 </div>
-                <p class="text-xs text-gray-400 text-center">Enter = toevoegen · 0 = naar inzet</p>
+                <p class="text-xs text-gray-400 text-center">OK/Enter = toevoegen · 0 = naar inzet</p>
             </div>
 
             <div id="bet-popup" class="hidden">
@@ -280,9 +283,12 @@ $hasWinningNumbers = !empty($winningData);
                 <div class="bg-gray-50 rounded-xl p-4 mb-4">
                     <p class="text-sm text-gray-500 text-center mb-2">Inzet voor rij <span id="bet-row-num">1</span></p>
                     <div id="bet-numbers-display" class="flex flex-wrap gap-1.5 justify-center mb-3"></div>
-                    <input type="text" id="bet-input" class="w-full px-4 py-4 text-2xl text-center bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="decimal" enterkeyhint="done">
+                    <div class="flex gap-2">
+                        <input type="text" id="bet-input" class="flex-1 px-4 py-4 text-2xl text-center bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none popup-input" placeholder="1.00" autocomplete="off" inputmode="decimal" enterkeyhint="done">
+                        <button type="button" id="bet-ok-btn" class="px-6 py-4 bg-emerald-500 text-white text-xl font-semibold rounded-xl hover:bg-emerald-600 active:bg-emerald-700 transition-colors">OK</button>
+                    </div>
                 </div>
-                <p class="text-xs text-gray-400 text-center">Enter = opslaan en volgende rij</p>
+                <p class="text-xs text-gray-400 text-center">OK/Enter = opslaan en volgende rij</p>
             </div>
         </div>
     </div>
@@ -540,39 +546,47 @@ $hasWinningNumbers = !empty($winningData);
             }).join('');
         }
 
+        function handleNumberInput() {
+            const input = document.getElementById('number-input');
+            const val = input.value.trim();
+            
+            if (val === '0' || val === '') {
+                if (currentNumbers.length > 0) {
+                    goToBetEntry();
+                }
+                return;
+            }
+            
+            const num = parseInt(val);
+            if (isNaN(num) || num < 1 || num > 80) {
+                input.value = '';
+                return;
+            }
+            
+            if (currentNumbers.includes(num)) {
+                input.value = '';
+                return;
+            }
+            
+            if (currentNumbers.length >= 10) {
+                input.value = '';
+                return;
+            }
+            
+            currentNumbers.push(num);
+            renderCurrentNumbers();
+            input.value = '';
+            input.focus();
+        }
+
         document.getElementById('number-input').addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const val = this.value.trim();
-                
-                if (val === '0' || val === '') {
-                    if (currentNumbers.length > 0) {
-                        goToBetEntry();
-                    }
-                    return;
-                }
-                
-                const num = parseInt(val);
-                if (isNaN(num) || num < 1 || num > 80) {
-                    this.value = '';
-                    return;
-                }
-                
-                if (currentNumbers.includes(num)) {
-                    this.value = '';
-                    return;
-                }
-                
-                if (currentNumbers.length >= 10) {
-                    this.value = '';
-                    return;
-                }
-                
-                currentNumbers.push(num);
-                renderCurrentNumbers();
-                this.value = '';
+                handleNumberInput();
             }
         });
+        
+        document.getElementById('number-ok-btn').addEventListener('click', handleNumberInput);
 
         function goToBetEntry() {
             showPopup('bet-popup');
@@ -594,29 +608,36 @@ $hasWinningNumbers = !empty($winningData);
             input.select();
         }
 
+        async function handleBetInput() {
+            const input = document.getElementById('bet-input');
+            let bet = parseFloat(input.value.replace(',', '.'));
+            if (isNaN(bet) || bet < 0.50) bet = 1.00;
+            
+            const response = await fetch('api/add_rij.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `bon_id=${currentBonId}&numbers=${currentNumbers.join(',')}&bet=${bet}`
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                savedRows.push({ numbers: [...currentNumbers], bet: bet });
+                currentRowNum++;
+                currentNumbers = [];
+                startNextRow();
+            } else {
+                alert(data.error || 'Kon rij niet opslaan');
+            }
+        }
+
         document.getElementById('bet-input').addEventListener('keydown', async function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                let bet = parseFloat(this.value.replace(',', '.'));
-                if (isNaN(bet) || bet < 0.50) bet = 1.00;
-                
-                const response = await fetch('api/add_rij.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `bon_id=${currentBonId}&numbers=${currentNumbers.join(',')}&bet=${bet}`
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    savedRows.push({ numbers: [...currentNumbers], bet: bet });
-                    currentRowNum++;
-                    currentNumbers = [];
-                    startNextRow();
-                } else {
-                    alert(data.error || 'Kon rij niet opslaan');
-                }
+                handleBetInput();
             }
         });
+        
+        document.getElementById('bet-ok-btn').addEventListener('click', handleBetInput);
 
         function startNextRow() {
             showPopup('number-popup');
