@@ -1,9 +1,12 @@
 <?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 session_start();
 require_once 'config.php';
 
 if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
-    header('Location: /dashboard.php');
+    $base = dirname($_SERVER['PHP_SELF']);
+    header("Location: $base/dashboard.php");
     exit();
 }
 
@@ -29,7 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['role'] = $user['role'] ?? 'user';
                 $_SESSION['user_id'] = $user['id'];
                 
-                header('Location: /dashboard.php');
+                $base = dirname($_SERVER['PHP_SELF']);
+                header("Location: $base/dashboard.php");
                 exit();
             } else {
                 $error = 'Onjuist wachtwoord';

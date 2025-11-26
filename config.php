@@ -1,10 +1,10 @@
 <?php
 // Get PostgreSQL connection details from environment variables
-$host = getenv('PGHOST') ?: 'localhost';
-$db = getenv('PGDATABASE') ?: 'postgres';
-$user = getenv('PGUSER') ?: 'postgres';
-$pass = getenv('PGPASSWORD') ?: '';
-$port = getenv('PGPORT') ?: '5432';
+$host = '127.0.0.1';
+$db = 'luckydays';
+$user = 'postgres';
+$pass = '';
+$port = '5432';
 
 // Create connection string
 $conn_string = "host=$host port=$port dbname=$db user=$user password=$pass";
