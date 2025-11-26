@@ -423,6 +423,15 @@ $hasWinningNumbers = !empty($winningData);
             document.getElementById('popup-overlay').classList.remove('flex');
         }
 
+        let popupBonId = null;
+        let popupBon = null;
+        let popupTotals = null;
+        let popupRijen = [];
+        let popupOriginalRijen = [];
+        let popupWinNums = [];
+        let popupHasPending = false;
+        let popupSaving = false;
+
         async function openBonPopup(bonId) {
             try {
                 const response = await fetch(`api/get_bon.php?id=${bonId}`);
@@ -433,105 +442,212 @@ $hasWinningNumbers = !empty($winningData);
                     return;
                 }
                 
-                const bon = data.bon;
-                const rijen = data.rijen;
-                const winNums = data.winning_numbers;
-                const totals = data.totals;
-                const hasPending = winNums.length === 0;
+                popupBonId = bonId;
+                popupBon = data.bon;
+                popupTotals = data.totals;
+                popupRijen = data.rijen.map(r => ({...r, numbers: [...r.numbers]}));
+                popupOriginalRijen = data.rijen.map(r => ({...r, numbers: [...r.numbers]}));
+                popupWinNums = data.winning_numbers;
+                popupHasPending = popupWinNums.length === 0;
                 
-                let rijenHtml = rijen.map((rij, i) => {
-                    const saldo = rij.saldo;
-                    return `
-                        <div class="p-3 bg-gray-50 rounded-lg">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-xs text-gray-500">Rij ${i + 1}</span>
-                                <div class="flex items-center gap-2">
-                                    ${hasPending 
-                                        ? '<span class="text-xs font-medium text-amber-600">In afwachting</span>'
-                                        : `<span class="text-xs font-medium ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
-                                    }
-                                    <button onclick="deleteRijFromPopup(${rij.id})" class="text-gray-400 hover:text-red-500 transition">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="flex flex-wrap gap-1 mb-2">
-                                ${rij.numbers.map(n => {
-                                    const isMatch = winNums.includes(n);
-                                    const cls = hasPending ? 'bg-amber-100 text-amber-700' : (isMatch ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500');
-                                    return `<span class="w-7 h-7 flex items-center justify-center text-xs font-medium ${cls} rounded">${n}</span>`;
-                                }).join('')}
-                            </div>
-                            <div class="text-xs text-gray-500">
-                                Inzet: €${rij.bet.toFixed(2)}${!hasPending ? ` · ${rij.matches} goed${rij.multiplier > 0 ? ` · ${rij.multiplier}x · €${rij.winnings.toFixed(2)}` : ''}` : ''}
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-                
-                const saldo = totals.saldo;
-                const content = `
-                    <div class="text-center mb-4">
-                        <div class="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3" style="background: ${bon.player_color}">
-                            ${bon.player_name.charAt(0).toUpperCase()}
-                        </div>
-                        <h3 class="text-xl font-bold text-gray-800">${escapeHtml(bon.player_name)}</h3>
-                        <p class="text-sm text-gray-500">${rijen.length} rij${rijen.length !== 1 ? 'en' : ''}</p>
-                    </div>
-                    
-                    ${winNums.length > 0 ? `
-                        <div class="mb-4 p-3 bg-emerald-50 rounded-xl">
-                            <p class="text-xs text-emerald-600 font-medium mb-2 text-center">Winnende nummers</p>
-                            <div class="flex flex-wrap gap-1 justify-center">
-                                ${winNums.map(n => `<span class="w-6 h-6 flex items-center justify-center text-xs font-medium bg-emerald-100 text-emerald-700 rounded">${n}</span>`).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
-                    
-                    <div class="space-y-2 mb-4 max-h-64 overflow-y-auto">
-                        ${rijenHtml || '<p class="text-center text-gray-400 py-4">Geen rijen</p>'}
-                    </div>
-                    
-                    <div class="bg-gray-100 rounded-xl p-4 mb-4">
-                        <div class="flex justify-between text-sm mb-1">
-                            <span class="text-gray-600">Totale inzet</span>
-                            <span class="font-medium">€${totals.bet.toFixed(2)}</span>
-                        </div>
-                        <div class="flex justify-between text-sm mb-2">
-                            <span class="text-gray-600">Uitbetaling</span>
-                            <span class="font-medium">€${totals.winnings.toFixed(2)}</span>
-                        </div>
-                        <hr class="border-gray-200 my-2">
-                        <div class="flex justify-between">
-                            <span class="font-semibold text-gray-800">Saldo</span>
-                            ${hasPending 
-                                ? '<span class="font-bold text-lg text-amber-600">In afwachting</span>'
-                                : `<span class="font-bold text-lg ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
-                            }
-                        </div>
-                        ${!hasPending ? `
-                            <div class="text-center text-xs mt-2 ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">
-                                ${saldo > 0 ? 'Je krijgt geld' : (saldo < 0 ? 'Je moet betalen' : 'Quitte')}
-                            </div>
-                        ` : ''}
-                    </div>
-                    
-                    <div class="flex gap-2">
-                        <a href="bon.php?id=${bon.id}" class="flex-1 py-3 text-center text-sm font-medium text-emerald-600 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition">
-                            Bewerken
-                        </a>
-                        <button onclick="deleteBonFromPopup(${bon.id})" class="flex-1 py-3 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
-                            Verwijderen
-                        </button>
-                    </div>
-                `;
-                
-                document.getElementById('bon-detail-content').innerHTML = content;
+                renderBonPopupContent();
                 showPopup('bon-detail-popup');
                 
             } catch (error) {
                 alert('Fout bij laden bon');
                 console.error(error);
+            }
+        }
+
+        function renderBonPopupContent() {
+            const bon = popupBon;
+            const totals = popupTotals;
+            let rijenHtml = popupRijen.map((rij, i) => {
+                const saldo = rij.saldo;
+                return `
+                    <div class="p-3 bg-gray-50 rounded-lg" data-rij-index="${i}">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-500">Rij ${i + 1}</span>
+                            <div class="flex items-center gap-2">
+                                ${popupHasPending 
+                                    ? '<span class="text-xs font-medium text-amber-600">In afwachting</span>'
+                                    : `<span class="text-xs font-medium ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
+                                }
+                                <button onclick="deleteRijFromPopup(${rij.id})" class="text-gray-400 hover:text-red-500 transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            ${rij.numbers.map((n, j) => {
+                                const isMatch = popupWinNums.includes(n);
+                                const cls = popupHasPending ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : (isMatch ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-200 text-gray-500 hover:bg-gray-300');
+                                return `<span class="w-8 h-8 flex items-center justify-center text-sm font-medium ${cls} rounded cursor-pointer transition" onclick="editNumber(${i}, ${j})" data-rij="${i}" data-num="${j}">${n}</span>`;
+                            }).join('')}
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            Inzet: €${rij.bet.toFixed(2)}${!popupHasPending ? ` · ${rij.matches} goed${rij.multiplier > 0 ? ` · ${rij.multiplier}x · €${rij.winnings.toFixed(2)}` : ''}` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            const saldo = totals.saldo;
+            const hasChanges = checkForChanges();
+            
+            const content = `
+                <div class="text-center mb-4">
+                    <div class="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3" style="background: ${bon.player_color}">
+                        ${bon.player_name.charAt(0).toUpperCase()}
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800">${escapeHtml(bon.player_name)}</h3>
+                    <p class="text-sm text-gray-500">${popupRijen.length} rij${popupRijen.length !== 1 ? 'en' : ''}</p>
+                </div>
+                
+                ${popupWinNums.length > 0 ? `
+                    <div class="mb-4 p-3 bg-emerald-50 rounded-xl">
+                        <p class="text-xs text-emerald-600 font-medium mb-2 text-center">Winnende nummers</p>
+                        <div class="flex flex-wrap gap-1 justify-center">
+                            ${popupWinNums.map(n => `<span class="w-8 h-8 flex items-center justify-center text-sm font-medium bg-emerald-100 text-emerald-700 rounded">${n}</span>`).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <div class="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                    ${rijenHtml || '<p class="text-center text-gray-400 py-4">Geen rijen</p>'}
+                </div>
+                
+                <div class="bg-gray-100 rounded-xl p-4 mb-4">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600">Totale inzet</span>
+                        <span class="font-medium">€${totals.bet.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between text-sm mb-2">
+                        <span class="text-gray-600">Uitbetaling</span>
+                        <span class="font-medium">€${totals.winnings.toFixed(2)}</span>
+                    </div>
+                    <hr class="border-gray-200 my-2">
+                    <div class="flex justify-between">
+                        <span class="font-semibold text-gray-800">Saldo</span>
+                        ${popupHasPending 
+                            ? '<span class="font-bold text-lg text-amber-600">In afwachting</span>'
+                            : `<span class="font-bold text-lg ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
+                        }
+                    </div>
+                    ${!popupHasPending ? `
+                        <div class="text-center text-xs mt-2 ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">
+                            ${saldo > 0 ? 'Je krijgt geld' : (saldo < 0 ? 'Je moet betalen' : 'Quitte')}
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div class="flex gap-2">
+                    ${hasChanges ? `
+                        <button onclick="savePopupChanges()" id="save-popup-btn" class="flex-1 py-3 text-sm font-medium text-white bg-emerald-500 rounded-xl hover:bg-emerald-600 transition ${popupSaving ? 'opacity-50 cursor-not-allowed' : ''}" ${popupSaving ? 'disabled' : ''}>
+                            ${popupSaving ? 'Opslaan...' : 'Opslaan'}
+                        </button>
+                    ` : ''}
+                    <button onclick="deleteBonFromPopup(${bon.id})" class="flex-1 py-3 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">
+                        Verwijderen
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('bon-detail-content').innerHTML = content;
+        }
+
+        function checkForChanges() {
+            for (let i = 0; i < popupRijen.length; i++) {
+                const current = popupRijen[i].numbers;
+                const original = popupOriginalRijen[i].numbers;
+                if (current.length !== original.length) return true;
+                for (let j = 0; j < current.length; j++) {
+                    if (current[j] !== original[j]) return true;
+                }
+            }
+            return false;
+        }
+
+        function editNumber(rijIndex, numIndex) {
+            const currentNum = popupRijen[rijIndex].numbers[numIndex];
+            const newNum = prompt(`Wijzig nummer (1-80):`, currentNum);
+            
+            if (newNum === null) return;
+            
+            const parsed = parseInt(newNum);
+            if (isNaN(parsed) || parsed < 1 || parsed > 80) {
+                alert('Voer een nummer in tussen 1 en 80');
+                return;
+            }
+            
+            popupRijen[rijIndex].numbers[numIndex] = parsed;
+            
+            renderBonPopupContent();
+        }
+
+        async function savePopupChanges() {
+            if (popupSaving) return;
+            
+            try {
+                const changes = [];
+                for (let i = 0; i < popupRijen.length; i++) {
+                    const current = popupRijen[i].numbers;
+                    const original = popupOriginalRijen[i].numbers;
+                    let changed = current.length !== original.length;
+                    if (!changed) {
+                        for (let j = 0; j < current.length; j++) {
+                            if (current[j] !== original[j]) {
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (changed) {
+                        changes.push({
+                            rij_id: popupRijen[i].id,
+                            numbers: current
+                        });
+                    }
+                }
+                
+                if (changes.length === 0) return;
+                
+                popupSaving = true;
+                renderBonPopupContent();
+                
+                const response = await fetch('api/update_rij_numbers.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ changes })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    const refreshResponse = await fetch(`api/get_bon.php?id=${popupBonId}`);
+                    const refreshData = await refreshResponse.json();
+                    
+                    if (refreshData.success) {
+                        popupBon = refreshData.bon;
+                        popupTotals = refreshData.totals;
+                        popupRijen = refreshData.rijen.map(r => ({...r, numbers: [...r.numbers]}));
+                        popupOriginalRijen = refreshData.rijen.map(r => ({...r, numbers: [...r.numbers]}));
+                        popupWinNums = refreshData.winning_numbers;
+                        popupHasPending = popupWinNums.length === 0;
+                    } else {
+                        location.reload();
+                        return;
+                    }
+                } else {
+                    alert(data.error || 'Fout bij opslaan');
+                }
+                
+                popupSaving = false;
+                renderBonPopupContent();
+                
+            } catch (e) {
+                popupSaving = false;
+                alert('Fout bij opslaan');
+                console.error(e);
             }
         }
 
