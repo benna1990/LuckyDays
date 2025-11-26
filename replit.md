@@ -143,6 +143,12 @@ admins (id, username, password, role)
 - Scraper auto-retry on failure
 - Auto-color generation for new players
 - Simplified bon.php (removed 350+ lines of keyboard code)
+- HTML date picker for easy date navigation
+- Popup shows all saved rows with per-row calculations
+- Winning numbers visible at top of all popups
+- Running totals (inzet, winst, saldo) below saved rows
+- Pending state (amber) when winning numbers unavailable
+- Mobile keyboard support with enterkeyhint="go" for Enter key
 
 ## Development Notes
 - Session: `$_SESSION['admin_logged_in']`
