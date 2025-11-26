@@ -22,6 +22,7 @@ $scrape_error = $result['error'] ?? null;
 $players = getAllPlayers($conn);
 $rows = getRowsByDate($conn, $selected_date);
 $day_stats = getDayStats($conn, $selected_date);
+$player_day_stats = getPlayerDayStats($conn, $selected_date);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -60,13 +61,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
             case 'add_player':
                 $name = trim($_POST['name']);
-                $alias = trim($_POST['alias'] ?? '');
                 $color = $_POST['color'] ?? '#3B82F6';
                 
                 if ($name) {
-                    $playerId = addPlayer($conn, $name, $alias, $color);
+                    $playerId = addPlayer($conn, $name, '', $color);
                     if ($playerId) {
-                        echo json_encode(['success' => true, 'id' => $playerId, 'name' => $name, 'alias' => $alias, 'color' => $color]);
+                        echo json_encode(['success' => true, 'id' => $playerId, 'name' => $name, 'alias' => '', 'color' => $color]);
                     } else {
                         echo json_encode(['success' => false, 'error' => 'Kon speler niet toevoegen']);
                     }
@@ -80,13 +80,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $results = [];
                 if ($players) {
                     foreach ($players as $p) {
-                        $searchStr = strtolower($p['name'] . ' ' . ($p['alias'] ?? '') . ' ' . $p['id']);
+                        $searchStr = strtolower($p['name'] . ' ' . $p['id']);
                         if (empty($query) || strpos($searchStr, strtolower($query)) !== false) {
                             $results[] = $p;
                         }
                     }
                 }
                 echo json_encode(['success' => true, 'players' => array_slice($results, 0, 10)]);
+                exit;
+                
+            case 'scrape_numbers':
+                $scrapeResult = scrapeLuckyDayNumbers($selected_date);
+                if ($scrapeResult['success']) {
+                    saveWinningNumbersToDatabase($selected_date, $scrapeResult['numbers'], $conn);
+                    echo json_encode(['success' => true, 'numbers' => $scrapeResult['numbers']]);
+                } else {
+                    echo json_encode(['success' => false, 'error' => $scrapeResult['error'] ?? 'Kon uitslag niet ophalen']);
+                }
                 exit;
                 
             case 'save_numbers':
@@ -104,13 +114,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $multipliers = getMultipliers();
 $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
+$total_saldo = floatval($day_stats['total_winnings']) - floatval($day_stats['total_bet']);
 ?>
 <!DOCTYPE html>
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LuckyDays Dashboard</title>
+    <title>LuckyDays Casino</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -134,13 +145,8 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-        .player-item.selected {
-            background: #F3F4F6;
-        }
-        .input-focus:focus {
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
-        }
+        .player-item.selected { background: #F3F4F6; }
+        .input-focus:focus { outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -150,9 +156,10 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center space-x-8">
-                    <span class="text-xl font-semibold text-gray-900">LuckyDays</span>
+                    <span class="text-xl font-semibold text-gray-900">LuckyDays <span class="text-xs text-gray-400">Casino</span></span>
                     <div class="hidden md:flex space-x-6">
                         <a href="dashboard.php" class="text-gray-900 font-medium">Dashboard</a>
+                        <a href="weekoverzicht.php" class="text-gray-500 hover:text-gray-900">Week</a>
                         <a href="spelers.php" class="text-gray-500 hover:text-gray-900">Spelers</a>
                         <a href="balans.php" class="text-gray-500 hover:text-gray-900">Balans</a>
                         <?php if ($isAdmin): ?>
@@ -170,7 +177,7 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <!-- Date Navigation -->
-        <div class="flex flex-wrap gap-2 mb-8 justify-center">
+        <div class="flex flex-wrap gap-2 mb-8 justify-center items-center">
             <?php foreach ($date_range as $date): ?>
                 <a href="?date=<?= $date ?>" 
                    class="px-4 py-2 rounded-lg text-sm font-medium transition-all
@@ -180,6 +187,10 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
                     <?= getDayAndAbbreviatedMonth($date) ?>
                 </a>
             <?php endforeach; ?>
+            <button onclick="scrapeNumbers()" class="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Uitslag ophalen
+            </button>
         </div>
 
         <!-- Winning Numbers Display -->
@@ -200,7 +211,7 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
             
             <?php if (!$hasWinningNumbers): ?>
                 <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <p class="text-amber-700 text-sm">Geen uitslag gevonden voor deze datum. Winstberekening is uitgeschakeld.</p>
+                    <p class="text-amber-700 text-sm">Geen uitslag gevonden. Klik op "Uitslag ophalen" of wacht op de trekking.</p>
                 </div>
             <?php else: ?>
                 <div class="flex flex-wrap gap-2">
@@ -213,76 +224,107 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
             <?php endif; ?>
         </div>
 
-        <!-- Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div class="bg-white rounded-xl p-5 border border-gray-100">
-                <p class="text-sm text-gray-500 mb-1">Totaal Inzet</p>
-                <p class="text-2xl font-semibold text-gray-900">&euro;<?= number_format($day_stats['total_bet'], 2, ',', '.') ?></p>
+        <!-- Casino Day Summary -->
+        <?php if (!empty($player_day_stats)): ?>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Dagoverzicht - Afrekening</h2>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+                <?php foreach ($player_day_stats as $ps): 
+                    $saldo = floatval($ps['saldo']);
+                    $needsPay = $saldo < 0;
+                    $getsWin = $saldo > 0;
+                ?>
+                <div class="p-3 rounded-lg border <?= $getsWin ? 'bg-green-50 border-green-200' : ($needsPay ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200') ?>">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="w-3 h-3 rounded-full flex-shrink-0" style="background: <?= htmlspecialchars($ps['color'] ?? '#3B82F6') ?>"></span>
+                        <span class="font-medium text-sm text-gray-900 truncate"><?= htmlspecialchars($ps['name']) ?></span>
+                        <span class="text-xs text-gray-400">#<?= $ps['id'] ?></span>
+                    </div>
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between"><span class="text-gray-500">Inzet:</span><span>&euro;<?= number_format($ps['total_bet'], 2, ',', '.') ?></span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Winst:</span><span>&euro;<?= number_format($ps['total_winnings'], 2, ',', '.') ?></span></div>
+                        <div class="flex justify-between font-semibold pt-1 border-t <?= $getsWin ? 'text-green-700' : ($needsPay ? 'text-red-700' : 'text-gray-700') ?>">
+                            <span><?= $getsWin ? 'Krijgt:' : ($needsPay ? 'Betaalt:' : 'Saldo:') ?></span>
+                            <span>&euro;<?= number_format(abs($saldo), 2, ',', '.') ?></span>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
             </div>
-            <div class="bg-white rounded-xl p-5 border border-gray-100">
-                <p class="text-sm text-gray-500 mb-1">Totaal Winst</p>
-                <p class="text-2xl font-semibold text-green-600">&euro;<?= number_format($day_stats['total_winnings'], 2, ',', '.') ?></p>
-            </div>
-            <div class="bg-white rounded-xl p-5 border border-gray-100">
-                <p class="text-sm text-gray-500 mb-1">Netto</p>
-                <?php $profit = $day_stats['total_winnings'] - $day_stats['total_bet']; ?>
-                <p class="text-2xl font-semibold <?= $profit >= 0 ? 'text-green-600' : 'text-red-500' ?>">
-                    &euro;<?= number_format($profit, 2, ',', '.') ?>
-                </p>
+
+            <!-- Day Totals -->
+            <div class="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+                <div class="text-center">
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Totaal Inzet</p>
+                    <p class="text-xl font-semibold text-gray-900">&euro;<?= number_format($day_stats['total_bet'], 2, ',', '.') ?></p>
+                </div>
+                <div class="text-center">
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Totaal Uitbetalen</p>
+                    <p class="text-xl font-semibold text-green-600">&euro;<?= number_format($day_stats['total_winnings'], 2, ',', '.') ?></p>
+                </div>
+                <div class="text-center">
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Casino Saldo</p>
+                    <p class="text-xl font-semibold <?= $total_saldo <= 0 ? 'text-green-600' : 'text-red-600' ?>">
+                        <?= $total_saldo <= 0 ? '+' : '-' ?>&euro;<?= number_format(abs($total_saldo), 2, ',', '.') ?>
+                    </p>
+                    <p class="text-xs <?= $total_saldo <= 0 ? 'text-green-500' : 'text-red-500' ?>">
+                        <?= $total_saldo <= 0 ? 'Winst voor casino' : 'Verlies voor casino' ?>
+                    </p>
+                </div>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Keyboard-First Bon Entry -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-lg font-semibold text-gray-900">Bon Invoer</h2>
-                <span class="text-xs text-gray-400">Volledig toetsenbord-gestuurd</span>
+                <span class="text-xs text-gray-400">Toetsenbord-gestuurd</span>
             </div>
 
             <!-- Player Search -->
             <div id="playerSearchSection" class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Zoek Speler</label>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Zoek Speler (naam of nummer)</label>
                 <div class="relative">
                     <input type="text" id="playerSearch" 
-                           placeholder="Typ naam of spelersnummer..." 
+                           placeholder="Typ naam of #nummer..." 
                            autocomplete="off"
                            class="w-full px-4 py-3 border border-gray-200 rounded-lg input-focus text-lg">
-                    <div id="playerResults" class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg hidden z-50 max-h-64 overflow-y-auto">
-                    </div>
+                    <div id="playerResults" class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg hidden z-50 max-h-64 overflow-y-auto"></div>
                 </div>
-                <p id="playerSearchHint" class="text-xs text-gray-400 mt-2">Enter = selecteer, Pijltjes = navigeer</p>
+                <p class="text-xs text-gray-400 mt-2">Enter = selecteer | Pijltjes = navigeer | Spelersnummer = auto-gegenereerd</p>
             </div>
 
-            <!-- Active Bon Entry (hidden until player selected) -->
+            <!-- Active Bon Entry -->
             <div id="bonEntrySection" class="hidden">
                 <div class="bg-gray-50 rounded-lg p-4 mb-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <span id="selectedPlayerDot" class="w-4 h-4 rounded-full"></span>
                             <span id="selectedPlayerName" class="font-semibold text-gray-900"></span>
-                            <span id="selectedPlayerAlias" class="text-gray-500 text-sm"></span>
+                            <span id="selectedPlayerId" class="text-gray-400 text-sm"></span>
                         </div>
                         <button onclick="cancelBon()" class="text-sm text-gray-500 hover:text-gray-700">Andere speler</button>
                     </div>
                 </div>
 
-                <!-- Current Row Entry -->
                 <div id="currentRowEntry" class="border-2 border-dashed border-gray-200 rounded-lg p-4 mb-4">
                     <div class="flex items-center gap-4 mb-4">
                         <div class="flex-1">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Nummers</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Nummers (1-80)</label>
                             <div class="flex items-center gap-2">
                                 <input type="text" id="numberInput" 
-                                       placeholder="Typ nummer en Enter..." 
+                                       placeholder="Typ nummer + Enter..." 
                                        autocomplete="off"
                                        class="flex-1 px-4 py-3 border border-gray-200 rounded-lg input-focus text-lg font-mono">
-                                <span id="numberCount" class="text-sm text-gray-400 whitespace-nowrap">0 nummers</span>
+                                <span id="numberCount" class="text-sm text-gray-400 whitespace-nowrap">0/10</span>
                             </div>
                         </div>
                     </div>
                     
                     <div id="currentNumbers" class="flex flex-wrap gap-2 min-h-[48px] mb-4">
-                        <span class="text-gray-400 text-sm py-2">Typ nummers 1-80, Enter om toe te voegen, 0 = klaar</span>
+                        <span class="text-gray-400 text-sm py-2">Typ nummers, Enter = toevoegen, 0 = klaar</span>
                     </div>
 
                     <div id="betSection" class="hidden">
@@ -296,16 +338,13 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
                             </div>
                             <span id="gameTypeLabel" class="text-sm text-gray-500"></span>
                         </div>
-                        <p class="text-xs text-gray-400 mt-2">Enter = opslaan en volgende rij</p>
+                        <p class="text-xs text-gray-400 mt-2">Enter = opslaan</p>
                     </div>
                 </div>
 
-                <!-- Saved Rows for Current Bon -->
-                <div id="bonRows" class="space-y-2 mb-4">
-                </div>
-
+                <div id="bonRows" class="space-y-2 mb-4"></div>
                 <p class="text-xs text-gray-400">
-                    <kbd class="px-1.5 py-0.5 bg-gray-100 rounded">Backspace</kbd> verwijder laatste nummer &bull;
+                    <kbd class="px-1.5 py-0.5 bg-gray-100 rounded">Backspace</kbd> verwijder laatste &bull;
                     <kbd class="px-1.5 py-0.5 bg-gray-100 rounded">0</kbd> als eerste = bon afsluiten
                 </p>
             </div>
@@ -313,21 +352,20 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
 
         <!-- Existing Rows Table -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h2 class="text-lg font-semibold text-gray-900 mb-6">Rijen van <?= date('d-m-Y', strtotime($selected_date)) ?></h2>
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Rijen <?= date('d-m-Y', strtotime($selected_date)) ?></h2>
             
             <div id="rowsContainer">
                 <?php if (empty($rows)): ?>
-                    <p class="text-gray-500 text-center py-8">Nog geen rijen ingevoerd voor deze datum</p>
+                    <p class="text-gray-500 text-center py-8">Nog geen rijen voor deze datum</p>
                 <?php else: ?>
                     <div class="overflow-x-auto">
-                        <table class="w-full">
+                        <table class="w-full text-sm">
                             <thead>
-                                <tr class="text-left text-sm text-gray-500 border-b border-gray-100">
+                                <tr class="text-left text-xs text-gray-500 border-b border-gray-100 uppercase tracking-wide">
                                     <th class="pb-3 font-medium">Speler</th>
                                     <th class="pb-3 font-medium">Nummers</th>
-                                    <th class="pb-3 font-medium">Speltype</th>
                                     <th class="pb-3 font-medium text-right">Inzet</th>
-                                    <th class="pb-3 font-medium text-center">Treffers</th>
+                                    <th class="pb-3 font-medium text-center">Match</th>
                                     <th class="pb-3 font-medium text-right">Winst</th>
                                     <th class="pb-3 font-medium"></th>
                                 </tr>
@@ -337,42 +375,39 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
                                     $rowNumbers = explode(',', $row['numbers']);
                                 ?>
                                 <tr class="hover:bg-gray-50" data-row-id="<?= $row['id'] ?>">
-                                    <td class="py-3">
+                                    <td class="py-2">
                                         <div class="flex items-center gap-2">
-                                            <span class="w-3 h-3 rounded-full" style="background: <?= htmlspecialchars($row['player_color'] ?? '#3B82F6') ?>"></span>
+                                            <span class="w-2 h-2 rounded-full" style="background: <?= htmlspecialchars($row['player_color'] ?? '#3B82F6') ?>"></span>
                                             <span class="font-medium text-gray-900"><?= htmlspecialchars($row['player_name']) ?></span>
-                                            <?php if (!empty($row['player_alias'])): ?>
-                                                <span class="text-gray-400 text-sm">(<?= htmlspecialchars($row['player_alias']) ?>)</span>
-                                            <?php endif; ?>
+                                            <span class="text-gray-400 text-xs">#<?= $row['player_id'] ?></span>
                                         </div>
                                     </td>
-                                    <td class="py-3">
+                                    <td class="py-2">
                                         <div class="flex flex-wrap gap-1">
                                             <?php foreach ($rowNumbers as $num): 
                                                 $isMatch = in_array(intval($num), array_map('intval', $winning_numbers));
                                             ?>
-                                                <span class="w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
+                                                <span class="w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium
                                                              <?= $isMatch ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600' ?>">
                                                     <?= $num ?>
                                                 </span>
                                             <?php endforeach; ?>
                                         </div>
                                     </td>
-                                    <td class="py-3 text-sm text-gray-600"><?= htmlspecialchars($row['game_type'] ?? '') ?></td>
-                                    <td class="py-3 text-sm text-gray-900 text-right">&euro;<?= number_format($row['bet'], 2, ',', '.') ?></td>
-                                    <td class="py-3 text-center">
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium
+                                    <td class="py-2 text-right text-gray-900">&euro;<?= number_format($row['bet'], 2, ',', '.') ?></td>
+                                    <td class="py-2 text-center">
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-medium
                                                      <?= ($row['matches'] ?? 0) > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500' ?>">
                                             <?= $row['matches'] ?? 0 ?>
                                         </span>
                                     </td>
-                                    <td class="py-3 text-right font-medium <?= ($row['winnings'] ?? 0) > 0 ? 'text-green-600' : 'text-gray-400' ?>">
+                                    <td class="py-2 text-right font-medium <?= ($row['winnings'] ?? 0) > 0 ? 'text-green-600' : 'text-gray-400' ?>">
                                         &euro;<?= number_format($row['winnings'] ?? 0, 2, ',', '.') ?>
                                     </td>
-                                    <td class="py-3 text-right">
-                                        <button onclick="deleteRow(<?= $row['id'] ?>)" class="text-gray-400 hover:text-red-500 transition-colors">
+                                    <td class="py-2 text-right">
+                                        <button onclick="deleteRow(<?= $row['id'] ?>)" class="text-gray-400 hover:text-red-500">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                             </svg>
                                         </button>
                                     </td>
@@ -388,16 +423,13 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
 
     <!-- Add Player Modal -->
     <div id="addPlayerModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Nieuwe Speler Toevoegen</h3>
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm mx-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Nieuwe Speler</h3>
+            <p class="text-xs text-gray-500 mb-4">Spelersnummer wordt automatisch toegekend</p>
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Naam</label>
                     <input type="text" id="newPlayerName" class="w-full px-3 py-2 border border-gray-200 rounded-lg input-focus">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Spelersnummer (optioneel)</label>
-                    <input type="text" id="newPlayerAlias" class="w-full px-3 py-2 border border-gray-200 rounded-lg input-focus">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Kleur</label>
@@ -414,7 +446,7 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
     <!-- Edit Numbers Modal -->
     <div id="editNumbersModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
         <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Winnende Nummers Bewerken</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Winnende Nummers</h3>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">20 nummers (kommagescheiden)</label>
                 <textarea id="editNumbersInput" rows="4" class="w-full px-3 py-2 border border-gray-200 rounded-lg input-focus"><?= implode(',', $winning_numbers) ?></textarea>
@@ -434,11 +466,9 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
         
         let currentPlayer = null;
         let currentNumbers = [];
-        let bonRows = [];
         let playerSearchIndex = -1;
         let filteredPlayers = [];
 
-        // Toast notification
         function showToast(message, type = 'info') {
             const toast = document.getElementById('toast');
             toast.className = 'toast px-4 py-3 rounded-lg shadow-lg text-sm font-medium ' + 
@@ -451,7 +481,25 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
             setTimeout(() => toast.classList.add('hidden'), 3000);
         }
 
-        // Player Search
+        function scrapeNumbers() {
+            showToast('Uitslag ophalen...', 'info');
+            fetch(`dashboard.php?date=${selectedDate}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=scrape_numbers'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Uitslag opgehaald!', 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showToast(data.error || 'Kon uitslag niet ophalen', 'error');
+                }
+            })
+            .catch(() => showToast('Netwerkfout', 'error'));
+        }
+
         const playerSearchInput = document.getElementById('playerSearch');
         const playerResults = document.getElementById('playerResults');
 
@@ -463,7 +511,7 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
                 filteredPlayers = allPlayers.slice(0, 10);
             } else {
                 filteredPlayers = allPlayers.filter(p => {
-                    const searchStr = (p.name + ' ' + (p.alias || '') + ' ' + p.id).toLowerCase();
+                    const searchStr = (p.name + ' ' + p.id).toLowerCase();
                     return searchStr.includes(query);
                 }).slice(0, 10);
             }
@@ -493,9 +541,7 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
         });
 
         playerSearchInput.addEventListener('focus', function() {
-            if (filteredPlayers.length === 0) {
-                filteredPlayers = allPlayers.slice(0, 10);
-            }
+            if (filteredPlayers.length === 0) filteredPlayers = allPlayers.slice(0, 10);
             renderPlayerResults();
         });
 
@@ -506,8 +552,7 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
                         <p class="text-gray-500 mb-2">Speler niet gevonden</p>
                         <button onclick="showAddPlayerModalWithName('${playerSearchInput.value.trim()}')" 
                                 class="text-blue-600 hover:text-blue-700 font-medium">+ Toevoegen?</button>
-                    </div>
-                `;
+                    </div>`;
                 playerResults.classList.remove('hidden');
             } else if (filteredPlayers.length > 0) {
                 playerResults.innerHTML = filteredPlayers.map((p, i) => `
@@ -515,10 +560,8 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
                          onclick="selectPlayer(${JSON.stringify(p).replace(/"/g, '&quot;')})">
                         <span class="w-3 h-3 rounded-full" style="background: ${p.color || '#3B82F6'}"></span>
                         <span class="font-medium">${p.name}</span>
-                        ${p.alias ? `<span class="text-gray-400 text-sm">(${p.alias})</span>` : ''}
-                        <span class="text-gray-300 text-xs ml-auto">#${p.id}</span>
-                    </div>
-                `).join('');
+                        <span class="text-gray-400 text-sm">#${p.id}</span>
+                    </div>`).join('');
                 playerResults.classList.remove('hidden');
             } else {
                 playerResults.classList.add('hidden');
@@ -534,14 +577,13 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
         function selectPlayer(player) {
             currentPlayer = player;
             currentNumbers = [];
-            bonRows = [];
             
             document.getElementById('playerSearchSection').classList.add('hidden');
             document.getElementById('bonEntrySection').classList.remove('hidden');
             
             document.getElementById('selectedPlayerDot').style.background = player.color || '#3B82F6';
             document.getElementById('selectedPlayerName').textContent = player.name;
-            document.getElementById('selectedPlayerAlias').textContent = player.alias ? `(${player.alias})` : '';
+            document.getElementById('selectedPlayerId').textContent = '#' + player.id;
             
             resetRowEntry();
             document.getElementById('numberInput').focus();
@@ -550,7 +592,6 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
         function cancelBon() {
             currentPlayer = null;
             currentNumbers = [];
-            bonRows = [];
             
             document.getElementById('playerSearchSection').classList.remove('hidden');
             document.getElementById('bonEntrySection').classList.add('hidden');
@@ -566,12 +607,11 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
             document.getElementById('numberInput').value = '';
             document.getElementById('numberInput').disabled = false;
             document.getElementById('betSection').classList.add('hidden');
-            document.getElementById('currentNumbers').innerHTML = '<span class="text-gray-400 text-sm py-2">Typ nummers 1-80, Enter om toe te voegen, 0 = klaar</span>';
-            document.getElementById('numberCount').textContent = '0 nummers';
+            document.getElementById('currentNumbers').innerHTML = '<span class="text-gray-400 text-sm py-2">Typ nummers, Enter = toevoegen, 0 = klaar</span>';
+            document.getElementById('numberCount').textContent = '0/10';
             document.getElementById('numberInput').focus();
         }
 
-        // Number Input
         const numberInput = document.getElementById('numberInput');
         const betInput = document.getElementById('betInput');
 
@@ -582,21 +622,19 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
                 
                 if (val === '0') {
                     if (currentNumbers.length === 0) {
-                        // 0 as first input = close bon
                         finishBon();
                     } else {
-                        // 0 after numbers = finish this row's numbers
                         finishNumberEntry();
                     }
                     this.value = '';
                 } else if (val !== '') {
                     const num = parseInt(val);
                     if (isNaN(num) || num < 1 || num > 80) {
-                        showToast('Nummer moet tussen 1 en 80 zijn', 'error');
+                        showToast('Nummer 1-80', 'error');
                     } else if (currentNumbers.includes(num)) {
-                        showToast('Nummer al gekozen', 'warning');
+                        showToast('Al gekozen', 'warning');
                     } else if (currentNumbers.length >= 10) {
-                        showToast('Maximum 10 nummers per rij', 'warning');
+                        showToast('Max 10 nummers', 'warning');
                     } else {
                         currentNumbers.push(num);
                         updateCurrentNumbers();
@@ -620,7 +658,7 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
         function updateCurrentNumbers() {
             const container = document.getElementById('currentNumbers');
             if (currentNumbers.length === 0) {
-                container.innerHTML = '<span class="text-gray-400 text-sm py-2">Typ nummers 1-80, Enter om toe te voegen, 0 = klaar</span>';
+                container.innerHTML = '<span class="text-gray-400 text-sm py-2">Typ nummers, Enter = toevoegen, 0 = klaar</span>';
             } else {
                 container.innerHTML = currentNumbers.map(num => {
                     const isWinning = winningNumbers.includes(num);
@@ -628,17 +666,15 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
                                   ${isWinning ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}">${num}</span>`;
                 }).join('');
             }
-            
-            document.getElementById('numberCount').textContent = currentNumbers.length + ' nummers';
+            document.getElementById('numberCount').textContent = currentNumbers.length + '/10';
             document.getElementById('gameTypeLabel').textContent = currentNumbers.length > 0 ? currentNumbers.length + '-getallen' : '';
         }
 
         function finishNumberEntry() {
             if (currentNumbers.length === 0) {
-                showToast('Voer minimaal 1 nummer in', 'error');
+                showToast('Minimaal 1 nummer', 'error');
                 return;
             }
-            
             document.getElementById('numberInput').disabled = true;
             document.getElementById('betSection').classList.remove('hidden');
             document.getElementById('betInput').focus();
@@ -647,13 +683,11 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
 
         function saveCurrentRow() {
             const bet = parseFloat(document.getElementById('betInput').value);
-            
             if (bet <= 0 || isNaN(bet)) {
-                showToast('Voer een geldige inzet in', 'error');
+                showToast('Geldige inzet vereist', 'error');
                 return;
             }
 
-            // Save to server
             fetch(`dashboard.php?date=${selectedDate}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -662,18 +696,11 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    // Add to bon rows display
                     addBonRowDisplay(data.row);
-                    
-                    // Add to main table
-                    addRowToTable(data.row);
-                    
-                    showToast('Rij opgeslagen', 'success');
-                    
-                    // Reset for next row
+                    showToast('Opgeslagen', 'success');
                     resetRowEntry();
                 } else {
-                    showToast(data.error || 'Fout bij opslaan', 'error');
+                    showToast(data.error || 'Fout', 'error');
                 }
             })
             .catch(() => showToast('Netwerkfout', 'error'));
@@ -685,79 +712,19 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
             const matches = parseInt(row.matches) || 0;
             const winnings = parseFloat(row.winnings) || 0;
             
-            const rowHtml = `
-                <div class="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+            container.insertAdjacentHTML('beforeend', `
+                <div class="flex items-center gap-4 p-3 bg-gray-50 rounded-lg text-sm">
                     <div class="flex flex-wrap gap-1 flex-1">
-                        ${numbers.map(n => {
-                            const isMatch = winningNumbers.includes(parseInt(n));
-                            return `<span class="w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
-                                          ${isMatch ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}">${n}</span>`;
-                        }).join('')}
+                        ${numbers.map(n => `<span class="w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium
+                              ${winningNumbers.includes(parseInt(n)) ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}">${n}</span>`).join('')}
                     </div>
-                    <span class="text-sm text-gray-500">${numbers.length}-getallen</span>
-                    <span class="text-sm text-gray-900">&euro;${parseFloat(row.bet).toFixed(2).replace('.', ',')}</span>
+                    <span class="text-gray-500">${numbers.length}-get</span>
+                    <span class="text-gray-900">&euro;${parseFloat(row.bet).toFixed(2).replace('.', ',')}</span>
                     <span class="px-2 py-0.5 rounded-full text-xs ${matches > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${matches}</span>
-                    <span class="text-sm font-medium ${winnings > 0 ? 'text-green-600' : 'text-gray-400'}">&euro;${winnings.toFixed(2).replace('.', ',')}</span>
-                </div>
-            `;
-            container.insertAdjacentHTML('beforeend', rowHtml);
-        }
-
-        function addRowToTable(row) {
-            const tbody = document.getElementById('rowsBody');
-            if (!tbody) {
-                // Refresh page if table doesn't exist yet
-                location.reload();
-                return;
-            }
+                    <span class="font-medium ${winnings > 0 ? 'text-green-600' : 'text-gray-400'}">&euro;${winnings.toFixed(2).replace('.', ',')}</span>
+                </div>`);
             
-            const numbers = row.numbers.split(',');
-            const matches = parseInt(row.matches) || 0;
-            const winnings = parseFloat(row.winnings) || 0;
-            
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-gray-50';
-            tr.dataset.rowId = row.id;
-            tr.innerHTML = `
-                <td class="py-3">
-                    <div class="flex items-center gap-2">
-                        <span class="w-3 h-3 rounded-full" style="background: ${row.player_color || '#3B82F6'}"></span>
-                        <span class="font-medium text-gray-900">${row.player_name}</span>
-                        ${row.player_alias ? `<span class="text-gray-400 text-sm">(${row.player_alias})</span>` : ''}
-                    </div>
-                </td>
-                <td class="py-3">
-                    <div class="flex flex-wrap gap-1">
-                        ${numbers.map(n => {
-                            const isMatch = winningNumbers.includes(parseInt(n));
-                            return `<span class="w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
-                                          ${isMatch ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'}">${n}</span>`;
-                        }).join('')}
-                    </div>
-                </td>
-                <td class="py-3 text-sm text-gray-600">${row.game_type || ''}</td>
-                <td class="py-3 text-sm text-gray-900 text-right">&euro;${parseFloat(row.bet).toFixed(2).replace('.', ',')}</td>
-                <td class="py-3 text-center">
-                    <span class="px-2 py-1 rounded-full text-xs font-medium ${matches > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${matches}</span>
-                </td>
-                <td class="py-3 text-right font-medium ${winnings > 0 ? 'text-green-600' : 'text-gray-400'}">
-                    &euro;${winnings.toFixed(2).replace('.', ',')}
-                </td>
-                <td class="py-3 text-right">
-                    <button onclick="deleteRow(${row.id})" class="text-gray-400 hover:text-red-500 transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                    </button>
-                </td>
-            `;
-            tbody.insertBefore(tr, tbody.firstChild);
-            
-            // Remove "no rows" message if present
-            const emptyMessage = document.querySelector('#rowsContainer > p');
-            if (emptyMessage) {
-                emptyMessage.remove();
-            }
+            setTimeout(() => location.reload(), 100);
         }
 
         function finishBon() {
@@ -767,7 +734,6 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
 
         function deleteRow(id) {
             if (!confirm('Rij verwijderen?')) return;
-            
             fetch(`dashboard.php?date=${selectedDate}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -776,16 +742,15 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    const row = document.querySelector(`tr[data-row-id="${id}"]`);
-                    if (row) row.remove();
-                    showToast('Rij verwijderd', 'success');
+                    document.querySelector(`tr[data-row-id="${id}"]`)?.remove();
+                    showToast('Verwijderd', 'success');
+                    setTimeout(() => location.reload(), 300);
                 } else {
-                    showToast(data.error || 'Fout bij verwijderen', 'error');
+                    showToast(data.error || 'Fout', 'error');
                 }
             });
         }
 
-        // Player Modal
         function showAddPlayerModalWithName(name) {
             document.getElementById('newPlayerName').value = name;
             document.getElementById('addPlayerModal').classList.remove('hidden');
@@ -800,39 +765,36 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
         function hideAddPlayerModal() {
             document.getElementById('addPlayerModal').classList.add('hidden');
             document.getElementById('newPlayerName').value = '';
-            document.getElementById('newPlayerAlias').value = '';
         }
 
         function addPlayer() {
             const name = document.getElementById('newPlayerName').value.trim();
-            const alias = document.getElementById('newPlayerAlias').value.trim();
             const color = document.getElementById('newPlayerColor').value;
 
             if (!name) {
-                showToast('Naam is verplicht', 'error');
+                showToast('Naam verplicht', 'error');
                 return;
             }
 
             fetch(`dashboard.php?date=${selectedDate}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `action=add_player&name=${encodeURIComponent(name)}&alias=${encodeURIComponent(alias)}&color=${encodeURIComponent(color)}`
+                body: `action=add_player&name=${encodeURIComponent(name)}&color=${encodeURIComponent(color)}`
             })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    const newPlayer = { id: data.id, name: data.name, alias: data.alias, color: data.color };
+                    const newPlayer = { id: data.id, name: data.name, color: data.color };
                     allPlayers.unshift(newPlayer);
                     hideAddPlayerModal();
                     selectPlayer(newPlayer);
-                    showToast('Speler toegevoegd', 'success');
+                    showToast('Speler #' + data.id + ' toegevoegd', 'success');
                 } else {
-                    showToast(data.error || 'Fout bij toevoegen', 'error');
+                    showToast(data.error || 'Fout', 'error');
                 }
             });
         }
 
-        // Edit Numbers Modal
         function showEditNumbersModal() {
             document.getElementById('editNumbersModal').classList.remove('hidden');
         }
@@ -843,7 +805,6 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
 
         function saveNumbers() {
             const input = document.getElementById('editNumbersInput').value;
-            
             fetch(`dashboard.php?date=${selectedDate}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -852,22 +813,20 @@ $hasWinningNumbers = !empty($winning_numbers) && $data_source !== 'none';
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    showToast('Nummers opgeslagen', 'success');
+                    showToast('Opgeslagen', 'success');
                     setTimeout(() => location.reload(), 500);
                 } else {
-                    showToast(data.error || 'Fout bij opslaan', 'error');
+                    showToast(data.error || 'Fout', 'error');
                 }
             });
         }
 
-        // Close results when clicking outside
         document.addEventListener('click', function(e) {
             if (!playerSearchInput.contains(e.target) && !playerResults.contains(e.target)) {
                 playerResults.classList.add('hidden');
             }
         });
 
-        // Initial focus
         document.addEventListener('DOMContentLoaded', function() {
             playerSearchInput.focus();
         });

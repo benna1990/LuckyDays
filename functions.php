@@ -288,10 +288,105 @@ function getPlayerStats($conn, $date) {
          FROM players p
          LEFT JOIN bons b ON p.id = b.player_id AND b.date = $1
          GROUP BY p.id, p.name, p.alias, p.color
+         HAVING COUNT(b.id) > 0
          ORDER BY p.name",
         [$date]
     );
     return $result ? pg_fetch_all($result) : [];
+}
+
+function getPlayerDayStats($conn, $date) {
+    $result = pg_query_params($conn,
+        "SELECT 
+            p.id, p.name, p.alias, p.color,
+            COUNT(b.id) as total_rows,
+            COALESCE(SUM(b.bet), 0) as total_bet,
+            COALESCE(SUM(b.winnings), 0) as total_winnings,
+            COALESCE(SUM(b.winnings), 0) - COALESCE(SUM(b.bet), 0) as saldo
+         FROM players p
+         JOIN bons b ON p.id = b.player_id AND b.date = $1
+         GROUP BY p.id, p.name, p.alias, p.color
+         ORDER BY saldo DESC",
+        [$date]
+    );
+    return $result ? pg_fetch_all($result) : [];
+}
+
+function getWeekStats($conn, $start_date, $end_date) {
+    $result = pg_query_params($conn,
+        "SELECT 
+            p.id, p.name, p.alias, p.color,
+            COUNT(b.id) as total_rows,
+            COALESCE(SUM(b.bet), 0) as total_bet,
+            COALESCE(SUM(b.winnings), 0) as total_winnings,
+            COALESCE(SUM(b.winnings), 0) - COALESCE(SUM(b.bet), 0) as saldo
+         FROM players p
+         JOIN bons b ON p.id = b.player_id AND b.date BETWEEN $1 AND $2
+         GROUP BY p.id, p.name, p.alias, p.color
+         ORDER BY saldo DESC",
+        [$start_date, $end_date]
+    );
+    return $result ? pg_fetch_all($result) : [];
+}
+
+function getWeekTotals($conn, $start_date, $end_date) {
+    $result = pg_query_params($conn,
+        "SELECT 
+            COUNT(*) as total_rows,
+            COALESCE(SUM(bet), 0) as total_bet,
+            COALESCE(SUM(winnings), 0) as total_winnings,
+            COALESCE(SUM(winnings), 0) - COALESCE(SUM(bet), 0) as saldo
+         FROM bons WHERE date BETWEEN $1 AND $2",
+        [$start_date, $end_date]
+    );
+    return $result ? pg_fetch_assoc($result) : ['total_rows' => 0, 'total_bet' => 0, 'total_winnings' => 0, 'saldo' => 0];
+}
+
+function getPlayerHistory($conn, $player_id, $start_date = null, $end_date = null) {
+    $sql = "SELECT b.*, p.name as player_name, p.alias as player_alias, p.color as player_color 
+            FROM bons b 
+            JOIN players p ON b.player_id = p.id 
+            WHERE b.player_id = $1";
+    $params = [$player_id];
+    
+    if ($start_date && $end_date) {
+        $sql .= " AND b.date BETWEEN $2 AND $3";
+        $params[] = $start_date;
+        $params[] = $end_date;
+    }
+    
+    $sql .= " ORDER BY b.date DESC, b.created_at DESC LIMIT 500";
+    
+    $result = pg_query_params($conn, $sql, $params);
+    return $result ? pg_fetch_all($result) : [];
+}
+
+function getPlayerTotals($conn, $player_id, $start_date = null, $end_date = null) {
+    $sql = "SELECT 
+                COUNT(*) as total_rows,
+                COALESCE(SUM(bet), 0) as total_bet,
+                COALESCE(SUM(winnings), 0) as total_winnings,
+                COALESCE(SUM(winnings), 0) - COALESCE(SUM(bet), 0) as saldo
+            FROM bons WHERE player_id = $1";
+    $params = [$player_id];
+    
+    if ($start_date && $end_date) {
+        $sql .= " AND date BETWEEN $2 AND $3";
+        $params[] = $start_date;
+        $params[] = $end_date;
+    }
+    
+    $result = pg_query_params($conn, $sql, $params);
+    return $result ? pg_fetch_assoc($result) : ['total_rows' => 0, 'total_bet' => 0, 'total_winnings' => 0, 'saldo' => 0];
+}
+
+function getISOWeekRange($date) {
+    $dt = new DateTime($date);
+    $dt->setISODate((int)$dt->format('o'), (int)$dt->format('W'), 1);
+    $start = $dt->format('Y-m-d');
+    $dt->modify('+6 days');
+    $end = $dt->format('Y-m-d');
+    return ['start' => $start, 'end' => $end, 'week' => $dt->format('W'), 'year' => $dt->format('o')];
 }
 
 ?>

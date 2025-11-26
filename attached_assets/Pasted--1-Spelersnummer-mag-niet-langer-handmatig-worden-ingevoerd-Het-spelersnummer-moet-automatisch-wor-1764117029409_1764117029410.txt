@@ -1,0 +1,41 @@
+	1.	Spelersnummer mag niet langer handmatig worden ingevoerd. Het spelersnummer moet automatisch worden gegenereerd bij het aanmaken van een speler. Gebruik een oplopend integer (1, 2, 3, …). De UI moet geen veld voor spelersnummer meer tonen.
+	2.	Scraper werkt nu niet automatisch. Fix dit.
+	•	Wanneer de gebruiker een datum selecteert:
+	•	Als er voor deze datum nog geen uitslag in de database staat, moet de scraper automatisch worden uitgevoerd voor die datum.
+	•	Scraper moet de uitslag ophalen via:
+https://luckyday.nederlandseloterij.nl/uitslag?date=YYYY-MM-DD
+	•	Na het ophalen moet de UI direct worden bijgewerkt.
+	•	Voeg daarnaast een handmatige “Uitslag ophalen” knop toe naast de datumselector.
+Deze knop moet de scraper opnieuw uitvoeren voor de geselecteerde datum en de UI updaten.
+	3.	Maak duidelijk in de code en UI dat deze tool wordt gebruikt in een casino-omgeving.
+De tellers moeten tonen of een speler moet betalen of geld moet krijgen. Doe dit op een overzichtelijke manier in het dagoverzicht:
+Voor elke speler in het dagoverzicht:
+	•	totaal inzet
+	•	totaal winst
+	•	saldo (winst - inzet)
+	•	status:
+	•	positief → speler moet geld krijgen
+	•	negatief → speler moet betalen
+Gebruik compacte weergave en kleurcodering (groen voor uitbetalen, rood voor betalen).
+	4.	Voeg onderaan het dagoverzicht een algemene dagtotaal-sectie toe:
+	•	totale inzetten van de dag
+	•	totale uitbetalingen van de dag
+	•	totale saldo (positief of negatief)
+Dit moet clean en minimaal worden weergegeven.
+	5.	Voeg een weekoverzicht toe waarin per week:
+	•	totalen per speler
+	•	totale inzet van de week
+	•	totale winst van de week
+	•	totaal saldo
+	•	mogelijkheid om de data van de geselecteerde week te bekijken of te exporteren (CSV is voldoende)
+Week = ISO-week, maar er mag ook een aangepaste datumrange gebruikt worden.
+	6.	Per speler moet er een detailoverzicht komen:
+	•	selecteer een speler
+	•	kies een week of datumrange
+	•	toon alle rijen van die periode
+	•	toon per periode:
+	•	totaal inzet
+	•	totaal winst
+	•	saldo
+	•	overzicht moet compact blijven, geschikt voor honderden spelers.
+	7.	Omdat er veel spelers zijn, moeten alle lijsten en tabellen klein, compact en efficiënt zijn. Nooit volledige gigantische lijsten tonen. Always filtering, pagineren of compacte weergaven gebruiken.
