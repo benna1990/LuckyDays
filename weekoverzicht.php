@@ -17,7 +17,39 @@ $next_week = date('Y-m-d', strtotime($week_range['start'] . ' +7 days'));
 $week_stats = getWeekStats($conn, $week_range['start'], $week_range['end']);
 $week_totals = getWeekTotals($conn, $week_range['start'], $week_range['end']);
 
-$total_saldo = floatval($week_totals['saldo']);
+$total_bet = floatval($week_totals['total_bet']);
+$total_winnings = floatval($week_totals['total_winnings']);
+$total_saldo = $total_winnings - $total_bet;
+
+$winners = [];
+$losers = [];
+if ($week_stats && is_array($week_stats)) {
+    foreach ($week_stats as $ps) {
+        $saldo = floatval($ps['saldo']);
+        if ($saldo > 0) {
+            $winners[] = $ps;
+        } elseif ($saldo < 0) {
+            $losers[] = $ps;
+        }
+    }
+    usort($winners, fn($a, $b) => floatval($b['saldo']) - floatval($a['saldo']));
+    usort($losers, fn($a, $b) => floatval($a['saldo']) - floatval($b['saldo']));
+    $winners = array_slice($winners, 0, 10);
+    $losers = array_slice($losers, 0, 10);
+}
+
+$toPay = 0;
+$toReceive = 0;
+if ($week_stats && is_array($week_stats)) {
+    foreach ($week_stats as $ps) {
+        $saldo = floatval($ps['saldo']);
+        if ($saldo > 0) {
+            $toPay += $saldo;
+        } else {
+            $toReceive += abs($saldo);
+        }
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'export_csv') {
     header('Content-Type: text/csv; charset=utf-8');
@@ -29,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     fputcsv($output, ['Weekoverzicht Week ' . $week_range['week'] . ' ' . $week_range['year']], ';');
     fputcsv($output, ['Periode: ' . $week_range['start'] . ' t/m ' . $week_range['end']], ';');
     fputcsv($output, [], ';');
+    fputcsv($output, ['SPELERS OVERZICHT'], ';');
     fputcsv($output, ['Speler', 'Bonnen', 'Rijen', 'Inzet', 'Winst', 'Saldo', 'Status'], ';');
     
     if ($week_stats) {
@@ -41,18 +74,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $ps['total_rijen'],
                 number_format($ps['total_bet'], 2, ',', '.'),
                 number_format($ps['total_winnings'], 2, ',', '.'),
-                number_format(abs($saldo), 2, ',', '.'),
+                number_format($saldo, 2, ',', '.'),
                 $status
             ], ';');
         }
     }
     
     fputcsv($output, [], ';');
-    fputcsv($output, ['TOTALEN', $week_totals['total_bons'], $week_totals['total_rijen'], 
-                      number_format($week_totals['total_bet'], 2, ',', '.'),
-                      number_format($week_totals['total_winnings'], 2, ',', '.'),
-                      number_format(abs($total_saldo), 2, ',', '.'),
-                      ''], ';');
+    fputcsv($output, ['BALANS'], ';');
+    fputcsv($output, ['Totaal inzet', number_format($total_bet, 2, ',', '.')], ';');
+    fputcsv($output, ['Totaal uitbetaald', number_format($total_winnings, 2, ',', '.')], ';');
+    fputcsv($output, ['Resultaat', number_format(-$total_saldo, 2, ',', '.')], ';');
     
     fclose($output);
     exit;
@@ -111,28 +143,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </a>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div class="card p-5">
-                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Bonnen</p>
-                <p class="text-2xl font-semibold text-gray-900"><?= $week_totals['total_bons'] ?></p>
-            </div>
-            <div class="card p-5">
-                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Rijen</p>
-                <p class="text-2xl font-semibold text-gray-900"><?= $week_totals['total_rijen'] ?></p>
-            </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div class="card p-5">
                 <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Totaal Inzet</p>
-                <p class="text-2xl font-semibold text-gray-900">€<?= number_format($week_totals['total_bet'], 2, ',', '.') ?></p>
+                <p class="text-2xl font-semibold text-gray-900">€<?= number_format($total_bet, 2, ',', '.') ?></p>
             </div>
             <div class="card p-5">
-                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Totaal Winst</p>
-                <p class="text-2xl font-semibold text-emerald-600">€<?= number_format($week_totals['total_winnings'], 2, ',', '.') ?></p>
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Totaal Uitbetaald</p>
+                <p class="text-2xl font-semibold text-emerald-600">€<?= number_format($total_winnings, 2, ',', '.') ?></p>
             </div>
+            <div class="card p-5">
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Resultaat</p>
+                <p class="text-2xl font-semibold <?= -$total_saldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
+                    <?= -$total_saldo >= 0 ? '+' : '' ?>€<?= number_format(-$total_saldo, 2, ',', '.') ?>
+                </p>
+                <p class="text-xs text-gray-400 mt-1"><?= -$total_saldo >= 0 ? 'Winst' : 'Verlies' ?></p>
+            </div>
+            <div class="card p-5">
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Activiteit</p>
+                <p class="text-2xl font-semibold text-gray-900"><?= $week_totals['total_bons'] ?></p>
+                <p class="text-xs text-gray-400 mt-1"><?= $week_totals['total_rijen'] ?> rijen</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="card p-6">
+                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Te betalen aan spelers</h3>
+                <div class="text-3xl font-bold text-red-500 mb-2">€<?= number_format($toPay, 2, ',', '.') ?></div>
+                <p class="text-xs text-gray-500"><?= count($winners) ?> speler<?= count($winners) != 1 ? 's' : '' ?> met winst</p>
+            </div>
+            <div class="card p-6">
+                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Te ontvangen van spelers</h3>
+                <div class="text-3xl font-bold text-emerald-600 mb-2">€<?= number_format($toReceive, 2, ',', '.') ?></div>
+                <p class="text-xs text-gray-500"><?= count($losers) ?> speler<?= count($losers) != 1 ? 's' : '' ?> met verlies</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <?php if (!empty($winners)): ?>
+            <div class="card p-6">
+                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Top Winnaars</h3>
+                <div class="space-y-2">
+                    <?php foreach ($winners as $i => $w): ?>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold <?= $i === 0 ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-600' ?>">
+                                <?= $i + 1 ?>
+                            </span>
+                            <span class="font-medium text-gray-800"><?= htmlspecialchars($w['name']) ?></span>
+                        </div>
+                        <span class="font-semibold text-emerald-600">+€<?= number_format($w['saldo'], 2, ',', '.') ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($losers)): ?>
+            <div class="card p-6">
+                <h3 class="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-4">Top Verliezers</h3>
+                <div class="space-y-2">
+                    <?php foreach ($losers as $i => $l): ?>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-200 text-gray-600">
+                                <?= $i + 1 ?>
+                            </span>
+                            <span class="font-medium text-gray-800"><?= htmlspecialchars($l['name']) ?></span>
+                        </div>
+                        <span class="font-semibold text-red-500">€<?= number_format($l['saldo'], 2, ',', '.') ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
 
         <div class="card p-6 mb-8">
             <div class="flex items-center justify-between mb-6">
-                <h2 class="text-lg font-semibold text-gray-800">Spelers overzicht</h2>
+                <h2 class="text-lg font-semibold text-gray-800">Alle spelers</h2>
                 <form method="POST" class="inline">
                     <input type="hidden" name="action" value="export_csv">
                     <button type="submit" class="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition">
@@ -180,9 +269,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 </td>
                                 <td class="py-3 text-center">
                                     <?php if ($getsWin): ?>
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Krijgt geld</span>
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Krijgt</span>
                                     <?php elseif ($needsPay): ?>
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Moet betalen</span>
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Betaalt</span>
                                     <?php else: ?>
                                         <span class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Quitte</span>
                                     <?php endif; ?>

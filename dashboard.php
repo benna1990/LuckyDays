@@ -8,7 +8,12 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit();
 }
 
-$selected_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
+if (!isset($_GET['date'])) {
+    header('Location: dashboard.php?date=' . date('Y-m-d'));
+    exit();
+}
+
+$selected_date = $_GET['date'];
 $date_range = generateDateRange($selected_date);
 
 $bonnen = getBonnenByDate($conn, $selected_date);

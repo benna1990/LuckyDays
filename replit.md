@@ -3,10 +3,11 @@
 ## Overview
 Modern webapp voor Lucky Day bonnenadministratie met volledig toetsenbord-gestuurde invoer:
 - Dag bevat bonnen, bon bevat rijen
-- Keyboard-first nummerinvoer met code-stijl tips
+- Visueel numeriek toetsenbord (sticky onderaan)
+- Live validatie met subtiele waarschuwingen
 - Automatische spelbepaling op basis van aantal nummers
 - Per rij eigen inzet en automatische winstberekening
-- Winnende nummers highlighten in blokjes
+- Winnende nummers highlighten (groen = goed, wit = fout)
 - Responsive, minimalistisch Tailwind design
 - Unieke spelernamen verplicht
 
@@ -18,8 +19,8 @@ Modern webapp voor Lucky Day bonnenadministratie met volledig toetsenbord-gestuu
 
 ## Database Schema
 ```sql
-players (id, name, color, created_at)       -- Unique name constraint
-bons (id, player_id, name, date, created_at) -- Container for rijen
+players (id, name, color, created_at)
+bons (id, player_id, name, date, created_at)
 rijen (id, bon_id, numbers, bet, game_type, matches, multiplier, winnings, created_at)
 winning_numbers (date, numbers)
 admins (id, username, password, role)
@@ -33,114 +34,111 @@ admins (id, username, password, role)
 ```
 /
 ├── index.php           # Login page
-├── dashboard.php       # Main dashboard - clean day overview
-├── bon.php             # Bon detail page with rijen
+├── dashboard.php       # Main dashboard - day overview (redirects to ?date=today)
+├── bon.php             # Bon detail with visual keyboard input
 ├── beheer.php          # Admin page (players + bons)
-├── weekoverzicht.php   # Week overview with CSV export
+├── weekoverzicht.php   # Week overview with stats, top 10, CSV export
 ├── logout.php          # Session logout
 ├── config.php          # PostgreSQL database config
 ├── functions.php       # Helper functions + all database queries
-├── scraper.js          # Puppeteer-based number scraper
+├── scraper.js          # Puppeteer-based scraper (loten.nl)
 ├── api/
-│   ├── create_bon.php  # Create new bon
+│   ├── create_bon.php  # Create bon (auto-creates player if needed)
 │   ├── add_rij.php     # Add rij to bon
 │   ├── delete_rij.php  # Delete rij
 │   ├── delete_bon.php  # Delete bon
 │   └── scrape_numbers.php  # Fetch winning numbers
-└── php/
-    └── simple_html_dom.php   # HTML parser library (legacy)
 ```
 
 ## Key Features
 
-### 1. Data Structure
-- **Dag**: Contains bonnen
-- **Bon**: Container with name, player, date
-- **Rij**: Individual bet with numbers, bet amount, result
+### 1. Visual Numeric Keyboard (bon.php)
+- Sticky keyboard at bottom of screen
+- Large touch-friendly buttons (0-9)
+- Live input display with count (0/10)
+- Duplicate number blocking with warning
+- Auto-add number after 2 digits entered
+- Special buttons: + (add), OK (finish), ← (remove last), C (clear)
 
-### 2. Keyboard-First Rij Entry
-**Workflow:**
-1. Open bon detail page
-2. Type numbers (1-80), Enter adds number block
-3. Type "0" to finish numbers
-4. Type bet amount, Enter saves rij
-5. Numbers clear, ready for next rij
+### 2. Number Entry Workflow
+1. Tap numbers on keyboard
+2. Numbers appear as chips (green if winning, white if not)
+3. Press OK when done with numbers
+4. Adjust bet amount with +/- buttons
+5. Save rij
 
-**Shortcuts:**
-- `Enter` - Add number / Save rij
-- `Backspace` - Remove last number
-- `0` - Finish entering numbers
-
-### 3. Scraper
-- **URL**: `https://luckyday.nederlandseloterij.nl/uitslag?date=YYYY-MM-DD`
-- Uses Puppeteer with headless Chromium (website requires JS)
-- Saves to database and recalculates all rijen for that date
+### 3. Scraper (loten.nl)
+- **Source**: `https://www.loten.nl/luckyday/`
+- Scrapes by matching Dutch date format
+- Returns 20 winning numbers + bonus number
+- Caches results in database
 
 ### 4. Automatic Game Type Detection
-- Number count determines game type (3 numbers = 3-getallen)
+- 1-10 numbers = 1-getallen to 10-getallen
 - No manual selection needed
 
-### 5. Multipliers
+### 5. Official Multipliers (loten.nl)
 ```
-1-getallen: 1 match = 4x
-2-getallen: 2 matches = 14x
-3-getallen: 3 matches = 50x, 2 matches = 10x
-4-getallen: 4 matches = 100x, 3 matches = 20x, 2 matches = 2x
-5-getallen: 5 matches = 300x, 4 matches = 80x, 3 matches = 5x
-6-getallen: 6 matches = 1500x, 5 matches = 100x, 4 matches = 10x, 3 matches = 2x
-7-getallen: 7 matches = 5000x, 6 matches = 500x, 5 matches = 25x, 4 matches = 5x
-8-getallen: 8 matches = 10000x, 7 matches = 1000x, 6 matches = 100x, 5 matches = 10x, 4 matches = 2x
-9-getallen: 9 matches = 25000x, 8 matches = 2500x, 7 matches = 250x, 6 matches = 25x, 5 matches = 5x
-10-getallen: 10 matches = 100000x, 9 matches = 5000x, 8 matches = 500x, 7 matches = 50x, 6 matches = 10x, 5 matches = 2x
+1-getallen: 1 goed = 2x
+2-getallen: 2 goed = 5x
+3-getallen: 3 goed = 16x, 2 goed = 2x
+4-getallen: 4 goed = 20x, 3 goed = 5x, 2 goed = 1x
+5-getallen: 5 goed = 200x, 4 goed = 8x, 3 goed = 2x
+6-getallen: 6 goed = 1000x, 5 goed = 20x, 4 goed = 5x, 3 goed = 1x
+7-getallen: 7 goed = 2000x, 6 goed = 100x, 5 goed = 10x, 4 goed = 2x, 3 goed = 1x
+8-getallen: 8 goed = 20000x, 7 goed = 200x, 6 goed = 20x, 5 goed = 8x, 4 goed = 2x
+9-getallen: 9 goed = 100000x, 8 goed = 2000x, 7 goed = 100x, 6 goed = 8x, 5 goed = 2x
+10-getallen: 10 goed = 300000x, 9 goed = 4000x, 8 goed = 200x, 7 goed = 20x, 6 goed = 5x, 5 goed = 2x
 ```
 
 ## UI Pages
 
 ### Dashboard
-- Clean day overview
-- List of bonnen (name, total, rijen count)
-- "Nieuwe bon" button
-- Collapsible "Spelers van vandaag" section at bottom
+- Redirects to ?date=today (date always in URL for scraper)
 - Date navigation (13 days)
-- Winning numbers display with fetch button
+- Bonnen list with player, rijen count, saldo
+- Day stats (totaal inzet, winst, saldo)
+- Winning numbers with fetch button
+- Collapsible "Spelers van vandaag"
 
-### Bon Detail
-- Player info header
+### Bon Detail (bon.php)
+- Player info header with saldo
 - Winning numbers display
-- Keyboard tips in code-style blocks
-- Number entry with live preview
-- Rij list with number blocks (winner = green, neutral = gray)
+- Visual keyboard input system
+- Number chips (groen = match, wit = geen match, geel = pending)
+- Rijen list with win/loss highlighting
 - Totals summary
-
-### Beheer (Admin)
-- Players list with edit/delete
-- Unique name validation
-- Recent bonnen list
 
 ### Weekoverzicht
 - Week navigation
-- Stats cards (bonnen, rijen, inzet, winst)
-- Player breakdown table with saldo
+- Stats cards (inzet, uitbetaald, resultaat, activiteit)
+- Te betalen / Te ontvangen van spelers
+- Top 10 Winnaars
+- Top 10 Verliezers
+- Alle spelers tabel met saldo/status
 - CSV export
-- Per-day breakdown
+- Per-dag breakdown
 
-## Naming Rules
-- No "casino" terminology
+## Design Rules
+- No "casino" terminology anywhere
 - Days contain bonnen
 - Bonnen contain rijen
 - Players must have unique names
+- Subtle warnings (no pop-ups)
+- Green = winning, White = not winning, Yellow = pending
 
 ## Recent Changes (Nov 26, 2025)
-- Complete redesign with new data structure (bon → rijen)
-- Removed alias field from players
-- Added unique name constraint
-- Collapsible players section (not icons/cards)
-- Code-style keyboard tips
-- Clean minimalist card design
-- Removed scraped data (fresh start)
+- Visual numeric keyboard instead of text input
+- Scraper now uses loten.nl (more reliable)
+- Updated multipliers to official values
+- Dashboard always has date in URL
+- Weekoverzicht with Top 10 winnaars/verliezers
+- Organization balance (te betalen / te ontvangen)
+- Duplicate number blocking with subtle warnings
+- Bon creation with typed player name (auto-creates)
 
 ## Development Notes
-- Session management via `$_SESSION['admin_logged_in']`
+- Session: `$_SESSION['admin_logged_in']`
 - PostgreSQL via environment variables
-- Scraper uses Node.js + Puppeteer (not cURL)
-- Winnings recalculated when numbers are fetched
+- Scraper: Node.js + Puppeteer + Chromium
+- All rijen recalculated when numbers are fetched
