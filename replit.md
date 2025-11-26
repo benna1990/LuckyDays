@@ -1,13 +1,12 @@
 # LuckyDays Lottery Tracker
 
 ## Overview
-Modern webapp voor LuckyDays-bonnenadministratie met:
-- Dagselectie met correcte uitslag ophalen
-- Spelers beheren met kleuren en aliassen  
-- Bonnen/rijen invoeren (meerdere rijen per speler per dag)
-- Automatische spelbepaling op basis van aantal ingevulde nummers
-- Per rij een eigen inzet en automatische winstberekening
-- Winnende nummers highlighten in groen
+Modern webapp voor LuckyDays-bonnenadministratie met volledig toetsenbord-gestuurde invoer:
+- Snelle spelerselectie met realtime zoeken
+- Keyboard-only nummerinvoer (geen muis nodig)
+- Automatische spelbepaling op basis van aantal nummers
+- Per rij eigen inzet en automatische winstberekening
+- Winnende nummers highlighten in badges
 - Responsive, minimalistisch Tailwind design
 
 ## Tech Stack
@@ -33,7 +32,7 @@ game_types (id, name, numbers_count, min_bet, bet_step, multipliers, active)
 ```
 /
 ├── index.php           # Login page
-├── dashboard.php       # Main dashboard met rij-invoer
+├── dashboard.php       # Main dashboard met keyboard-first invoer
 ├── spelers.php         # Speler management
 ├── balans.php          # Balans overzicht met ROI
 ├── spellen.php         # Speltype configuratie
@@ -54,20 +53,31 @@ game_types (id, name, numbers_count, min_bet, bet_step, multipliers, active)
 
 ## Key Features
 
-### 1. Scraper
+### 1. Keyboard-First Bon Invoer
+**Workflow:**
+1. Zoek speler (typ naam/nummer, pijltjes navigeren, Enter selecteert)
+2. Typ nummers (1-80), Enter toevoegt badge
+3. Typ "0" om nummers af te sluiten
+4. Typ inzet, Enter opslaat rij
+5. Automatisch nieuwe rij, focus terug naar nummerveld
+6. "0" als eerste input = bon afsluiten
+
+**Shortcuts:**
+- `Enter` - Nummer toevoegen / Rij opslaan
+- `Backspace` - Laatste nummer verwijderen
+- `0` - Nummers afsluiten / Bon afsluiten
+- `Pijltjes` - Navigeer spelers
+
+### 2. Scraper
 - **URL**: `https://luckyday.nederlandseloterij.nl/uitslag?date=YYYY-MM-DD`
-- Altijd exacte datum ophalen, geen fallback
-- Opslaan in database, geen duplicaten
-- JSON response: `{date, numbers: [20 getallen]}`
+- Altijd exacte datum ophalen
+- Bij ontbrekende uitslag: waarschuwing + winstberekening uitgeschakeld
 
-### 2. Rij Invoer
-- 80 nummer-knoppen grid
-- Automatische spelbepaling: aantal nummers = speltype
-- Per rij eigen inzet
-- Keyboard shortcuts: Enter (opslaan), Backspace (verwijderen), Esc (wissen)
-- Winnende nummers groen gemarkeerd in grid
+### 3. Automatische Spelbepaling
+- Aantal nummers = speltype (3 nummers = 3-getallen)
+- Geen dropdown of handmatige selectie
 
-### 3. Multipliers (configureerbaar)
+### 4. Multipliers (configureerbaar)
 ```
 1-getallen: 1 match = 4x
 2-getallen: 2 matches = 14x
@@ -81,42 +91,28 @@ game_types (id, name, numbers_count, min_bet, bet_step, multipliers, active)
 10-getallen: 10 matches = 100000x, 9 matches = 5000x, 8 matches = 500x, 7 matches = 50x, 6 matches = 10x, 5 matches = 2x
 ```
 
-### 4. Dashboard
-- 13-dagen datumnavigatie
-- Uitslag in pill-style bolletjes
-- Rijen gegroepeerd per speler
-- Per rij: nummers, inzet, treffers, winst
-- Totale statistieken per dag
-
-### 5. Balans
-- Totale inzet/winst/netto per speler
-- ROI berekening per speler
-- Geoptimaliseerde batch queries (geen re-scraping)
-
 ## Application Flow
 ```
-1. Gebruiker selecteert datum
-2. Check database voor uitslag
-3. Geen data? → Scrape van nederlandseloterij.nl
-4. Uitslag opslaan → Toon op dashboard
-5. Gebruiker voegt rij toe → Selecteer speler, nummers, inzet
-6. Speltype automatisch bepaald (aantal nummers)
-7. Rij opgeslagen → Matches en winst berekend
-8. Balans pagina → ROI per speler
+1. Speler zoeken met keyboard
+2. Nummers typen (Enter per nummer)
+3. "0" typ = klaar met nummers
+4. Inzet invoeren + Enter
+5. Rij opgeslagen met berekende winst
+6. Automatisch volgende rij
+7. "0" als eerste = terug naar spelerselectie
 ```
 
-## Recent Changes (Nov 25, 2025)
-- Complete rebuild met Tailwind CSS
-- Scraper gefixed: nu altijd correcte datum ophalen
-- Players tabel vereenvoudigd (geen bet/date meer)
-- Automatische spelbepaling op basis van nummers
-- Per-rij winstberekening met matches
-- Minimalistisch design (Notion/Linear style)
-- Keyboard shortcuts voor snelle invoer
-- Batch queries voor balans (geen re-scraping)
+## Recent Changes (Nov 26, 2025)
+- Volledig toetsenbord-gestuurd invoersysteem
+- Nummerblokken 1-80 verwijderd
+- Snelle spelerselectie met realtime zoeken
+- "0" als afsluitsignaal voor nummers en bon
+- Toast notificaties voor feedback
+- Ronde badges voor gekozen nummers
+- Automatische focus flow
 
 ## Development Notes
 - Session management via PHP sessions
-- PostgreSQL via environment variables (PGHOST, PGDATABASE, etc.)
+- PostgreSQL via environment variables
 - Scraper alleen wanneer datum geen stored data heeft
-- Winst berekening overgeslagen bij ontbrekende uitslag
+- Winst berekening uitgeschakeld bij ontbrekende uitslag
