@@ -33,7 +33,11 @@ function saveWinningNumbersToDatabase($selected_date, $winning_numbers, $conn) {
 }
 
 function scrapeLuckyDayNumbers($date) {
-    $output = shell_exec("node scraper.js " . escapeshellarg($date) . " 2>&1");
+    $nodePath = '/nix/store/8y4ls7z2sfxbq6ch3yp45l28p29qswvx-nodejs-20.19.3-wrapped/bin/node';
+    $scraperPath = __DIR__ . '/scraper.js';
+    
+    $command = $nodePath . ' ' . escapeshellarg($scraperPath) . ' ' . escapeshellarg($date) . ' 2>&1';
+    $output = shell_exec($command);
     
     if ($output) {
         $result = json_decode(trim($output), true);
