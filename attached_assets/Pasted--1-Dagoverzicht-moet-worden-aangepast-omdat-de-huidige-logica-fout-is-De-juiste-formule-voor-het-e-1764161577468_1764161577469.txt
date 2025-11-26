@@ -1,0 +1,43 @@
+	1.	Dagoverzicht moet worden aangepast omdat de huidige logica fout is.
+De juiste formule voor het eindsaldo is:
+saldo = totale inzet – totale uitbetaling.
+Inzet = geld dat binnenkomt van spelers.
+Uitbetaling = geld dat wordt betaald aan spelers (verlies).
+Een positief saldo betekent winst, een negatief saldo betekent verlies.
+Momenteel toont het systeem een positief saldo terwijl de uitbetalingen hoger zijn dan de inzet, dit is fout.
+	2.	Terminologie consistent maken:
+• “Inzet” = ontvangen geld
+• “Uitbetaald aan spelers” = geld uitgegeven
+• “Saldo” = inzet – uitbetaald
+Geen andere termen gebruiken, dit voorkomt fouten bij tellers.
+	3.	UI weergave per speler aanpassen:
+Het moet volledig duidelijk zijn wie geld krijgt en wie moet betalen.
+Gebruik deze regels:
+• Groen = geld gaat naar de speler (uitbetaling, verlies voor de teller)
+• Rood = geld komt van de speler (winst voor de teller)
+Voorbeeld per speler:
++€20,00 → te betalen aan speler
+–€4,00 → ontvangen van speler
+	4.	Dagoverzicht UI herschrijven:
+Toon deze drie vaste onderdelen in vaste volgorde:
+• Totale inzet (ontvangen)
+• Uitbetaald aan spelers
+• Eindsaldo = inzet – uitbetaald
+Gebruik duidelijke labels:
+“Inzet ontvangen”
+“Uitbetaald aan spelers”
+“Eindsaldo (winst of verlies voor teller)”
+	5.	Kleuren van dagtotaal koppelen aan saldo:
+• Positief saldo → groen (winst)
+• Negatief saldo → rood (verlies)
+	6.	Extra foutpreventie:
+Voeg controle toe die waarschuwt als de som van alle bonnen niet overeenkomt met de dagtotalen.
+Dit voorkomt dat een teller verkeerde bedragen noteert.
+	7.	Nieuw nummer-invoer systeem:
+De nieuwe nummer-aanpas functie werkt niet goed omdat de wijzigingen niet worden opgeslagen.
+Controleer:
+• de POST/GET van het nummerupdate formulier
+• de database query die de rijnummering moet opslaan
+• of de bon-ID correct wordt meegegeven bij het opslaan
+• of bij meerdere rijen dezelfde keys worden overschreven
+De functie moet altijd na bevestiging opslaan in de database voordat de app teruggaat naar de bon.

@@ -136,16 +136,25 @@ admins (id, username, password, role)
 - Green = winning, White = not winning, Yellow = pending
 
 ## Recent Changes (Nov 26, 2025)
+
+### Teller Perspectief Update
+- **Dagtotaal formule**: saldo = inzet - uitbetaling (teller perspectief)
+- **Teller labels**: "Inzet ontvangen" (+groen), "Uitbetaald aan spelers" (-rood), "Eindsaldo"
+- **Per-klant/bon weergave**: +€X groen = "Te betalen", –€X rood = "Ontvangen"
+- **Kleur logica**: Groen = geld naar speler, Rood = geld van speler
+- **Status labels**: "Winst voor teller" / "Verlies voor teller"
+
+### Nummer Bewerken
 - **Editable numbers in popup**: Click on any number to change it (prompt 1-80)
 - **Save button**: Replaces "Bewerken", only appears when numbers changed
 - **Loading state**: Save button disabled during save, shows "Opslaan..."
 - **Consistent number sizing**: All numbers now 32x32px (w-8 h-8)
-- **API endpoint**: New api/update_rij_numbers.php for updating row numbers
+- **API endpoint**: api/update_rij_numbers.php with proper error handling
+
+### Dashboard Updates  
 - **Dashboard bon list**: Shows player name prominently instead of "Bon [date]"
 - **Bon detail popup**: Click bon to open popup with all details (rijen, calculations)
-- **API endpoint**: New api/get_bon.php for bon details via AJAX
 - **Klantoverzicht**: Always visible (not collapsed), shows inzet + saldo per player
-- **Day stats**: Changed "Totale winst" to "Uitbetaling" for clarity
 - **Empty bons filtered**: getBonnenByDate excludes bons without rijen
 - **OK buttons**: Visible OK buttons for mobile users (number input, bet input)
 - Replaced visual keyboard with popup-based input

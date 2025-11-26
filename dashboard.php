@@ -106,7 +106,9 @@ $hasWinningNumbers = !empty($winningData);
                 <?php else: ?>
                     <div class="space-y-3">
                         <?php foreach ($bonnen as $bon): 
-                            $saldo = floatval($bon['total_winnings']) - floatval($bon['total_bet']);
+                            $bonWinnings = floatval($bon['total_winnings']);
+                            $bonBet = floatval($bon['total_bet']);
+                            $teBetalen = $bonWinnings - $bonBet;
                         ?>
                             <div onclick="openBonPopup(<?= $bon['id'] ?>)" class="cursor-pointer p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition group">
                                 <div class="flex items-center justify-between">
@@ -116,16 +118,20 @@ $hasWinningNumbers = !empty($winningData);
                                         </div>
                                         <div>
                                             <div class="text-lg font-semibold text-gray-800"><?= htmlspecialchars($bon['player_name']) ?></div>
-                                            <div class="text-sm text-gray-500"><?= $bon['rijen_count'] ?> rij<?= $bon['rijen_count'] != 1 ? 'en' : '' ?> · Inzet €<?= number_format($bon['total_bet'], 2, ',', '.') ?></div>
+                                            <div class="text-sm text-gray-500"><?= $bon['rijen_count'] ?> rij<?= $bon['rijen_count'] != 1 ? 'en' : '' ?> · Inzet €<?= number_format($bonBet, 2, ',', '.') ?></div>
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <div class="text-2xl font-bold <?= $saldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
-                                            <?= $saldo >= 0 ? '+' : '' ?>€<?= number_format($saldo, 2, ',', '.') ?>
-                                        </div>
-                                        <div class="text-xs text-gray-500">
-                                            <?= $saldo > 0 ? 'Krijgt' : ($saldo < 0 ? 'Betaalt' : 'Quitte') ?>
-                                        </div>
+                                        <?php if ($teBetalen > 0): ?>
+                                            <div class="text-2xl font-bold text-emerald-600">+€<?= number_format($teBetalen, 2, ',', '.') ?></div>
+                                            <div class="text-xs text-emerald-600">Te betalen</div>
+                                        <?php elseif ($teBetalen < 0): ?>
+                                            <div class="text-2xl font-bold text-red-500">–€<?= number_format(abs($teBetalen), 2, ',', '.') ?></div>
+                                            <div class="text-xs text-red-500">Ontvangen</div>
+                                        <?php else: ?>
+                                            <div class="text-2xl font-bold text-gray-500">€0,00</div>
+                                            <div class="text-xs text-gray-500">Quitte</div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </div>
@@ -138,7 +144,9 @@ $hasWinningNumbers = !empty($winningData);
                 <div class="card p-6">
                     <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-4">Dagtotaal</h3>
                     <?php 
-                    $daySaldo = floatval($dayStats['total_winnings']) - floatval($dayStats['total_bet']);
+                    $inzetOntvangen = floatval($dayStats['total_bet']);
+                    $uitbetaaldAanSpelers = floatval($dayStats['total_winnings']);
+                    $eindSaldo = $inzetOntvangen - $uitbetaaldAanSpelers;
                     ?>
                     <div class="space-y-3">
                         <div class="flex justify-between">
@@ -150,19 +158,22 @@ $hasWinningNumbers = !empty($winningData);
                             <span class="font-medium"><?= $dayStats['total_rijen'] ?></span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-gray-600">Totale inzet</span>
-                            <span class="font-medium">€<?= number_format($dayStats['total_bet'], 2, ',', '.') ?></span>
+                            <span class="text-gray-600">Inzet ontvangen</span>
+                            <span class="font-medium text-emerald-600">+€<?= number_format($inzetOntvangen, 2, ',', '.') ?></span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-gray-600">Uitbetaling</span>
-                            <span class="font-medium">€<?= number_format($dayStats['total_winnings'], 2, ',', '.') ?></span>
+                            <span class="text-gray-600">Uitbetaald aan spelers</span>
+                            <span class="font-medium text-red-500">-€<?= number_format($uitbetaaldAanSpelers, 2, ',', '.') ?></span>
                         </div>
                         <hr class="border-gray-100">
                         <div class="flex justify-between">
-                            <span class="font-medium text-gray-800">Saldo</span>
-                            <span class="font-semibold <?= $daySaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
-                                <?= $daySaldo >= 0 ? '+' : '' ?>€<?= number_format($daySaldo, 2, ',', '.') ?>
+                            <span class="font-medium text-gray-800">Eindsaldo</span>
+                            <span class="font-bold text-lg <?= $eindSaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
+                                <?= $eindSaldo >= 0 ? '+' : '' ?>€<?= number_format($eindSaldo, 2, ',', '.') ?>
                             </span>
+                        </div>
+                        <div class="text-center text-xs <?= $eindSaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
+                            <?= $eindSaldo >= 0 ? 'Winst voor teller' : 'Verlies voor teller' ?>
                         </div>
                     </div>
                 </div>
@@ -204,8 +215,9 @@ $hasWinningNumbers = !empty($winningData);
                 <?php else: ?>
                     <div class="space-y-2">
                         <?php foreach ($playerStats as $player): 
-                            $playerSaldo = floatval($player['saldo']);
+                            $playerWinnings = floatval($player['total_winnings'] ?? 0);
                             $playerBet = floatval($player['total_bet'] ?? 0);
+                            $teBetalen = $playerWinnings - $playerBet;
                         ?>
                             <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                                 <div class="flex items-center gap-3">
@@ -218,12 +230,16 @@ $hasWinningNumbers = !empty($winningData);
                                     </div>
                                 </div>
                                 <div class="text-right">
-                                    <div class="text-xl font-bold <?= $playerSaldo >= 0 ? 'text-emerald-600' : 'text-red-500' ?>">
-                                        <?= $playerSaldo >= 0 ? '+' : '' ?>€<?= number_format($playerSaldo, 2, ',', '.') ?>
-                                    </div>
-                                    <div class="text-xs text-gray-500">
-                                        <?= $playerSaldo > 0 ? 'Krijgt' : ($playerSaldo < 0 ? 'Betaalt' : 'Quitte') ?>
-                                    </div>
+                                    <?php if ($teBetalen > 0): ?>
+                                        <div class="text-xl font-bold text-emerald-600">+€<?= number_format($teBetalen, 2, ',', '.') ?></div>
+                                        <div class="text-xs text-emerald-600">Te betalen</div>
+                                    <?php elseif ($teBetalen < 0): ?>
+                                        <div class="text-xl font-bold text-red-500">–€<?= number_format(abs($teBetalen), 2, ',', '.') ?></div>
+                                        <div class="text-xs text-red-500">Ontvangen</div>
+                                    <?php else: ?>
+                                        <div class="text-xl font-bold text-gray-500">€0,00</div>
+                                        <div class="text-xs text-gray-500">Quitte</div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -463,7 +479,7 @@ $hasWinningNumbers = !empty($winningData);
             const bon = popupBon;
             const totals = popupTotals;
             let rijenHtml = popupRijen.map((rij, i) => {
-                const saldo = rij.saldo;
+                const teBetalen = rij.winnings - rij.bet;
                 return `
                     <div class="p-3 bg-gray-50 rounded-lg" data-rij-index="${i}">
                         <div class="flex items-center justify-between mb-2">
@@ -471,7 +487,11 @@ $hasWinningNumbers = !empty($winningData);
                             <div class="flex items-center gap-2">
                                 ${popupHasPending 
                                     ? '<span class="text-xs font-medium text-amber-600">In afwachting</span>'
-                                    : `<span class="text-xs font-medium ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
+                                    : (teBetalen > 0 
+                                        ? `<span class="text-xs font-medium text-emerald-600">+€${teBetalen.toFixed(2)}</span>`
+                                        : (teBetalen < 0 
+                                            ? `<span class="text-xs font-medium text-red-500">–€${Math.abs(teBetalen).toFixed(2)}</span>`
+                                            : '<span class="text-xs font-medium text-gray-500">€0,00</span>'))
                                 }
                                 <button onclick="deleteRijFromPopup(${rij.id})" class="text-gray-400 hover:text-red-500 transition">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -519,24 +539,28 @@ $hasWinningNumbers = !empty($winningData);
                 
                 <div class="bg-gray-100 rounded-xl p-4 mb-4">
                     <div class="flex justify-between text-sm mb-1">
-                        <span class="text-gray-600">Totale inzet</span>
+                        <span class="text-gray-600">Inzet ontvangen</span>
                         <span class="font-medium">€${totals.bet.toFixed(2)}</span>
                     </div>
                     <div class="flex justify-between text-sm mb-2">
-                        <span class="text-gray-600">Uitbetaling</span>
+                        <span class="text-gray-600">Uitbetaald</span>
                         <span class="font-medium">€${totals.winnings.toFixed(2)}</span>
                     </div>
                     <hr class="border-gray-200 my-2">
                     <div class="flex justify-between">
-                        <span class="font-semibold text-gray-800">Saldo</span>
+                        <span class="font-semibold text-gray-800">Resultaat</span>
                         ${popupHasPending 
                             ? '<span class="font-bold text-lg text-amber-600">In afwachting</span>'
-                            : `<span class="font-bold text-lg ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">${saldo >= 0 ? '+' : ''}€${saldo.toFixed(2)}</span>`
+                            : (saldo > 0 
+                                ? `<span class="font-bold text-lg text-emerald-600">+€${saldo.toFixed(2)}</span>`
+                                : (saldo < 0 
+                                    ? `<span class="font-bold text-lg text-red-500">–€${Math.abs(saldo).toFixed(2)}</span>`
+                                    : '<span class="font-bold text-lg text-gray-500">€0,00</span>'))
                         }
                     </div>
                     ${!popupHasPending ? `
-                        <div class="text-center text-xs mt-2 ${saldo >= 0 ? 'text-emerald-600' : 'text-red-500'}">
-                            ${saldo > 0 ? 'Je krijgt geld' : (saldo < 0 ? 'Je moet betalen' : 'Quitte')}
+                        <div class="text-center text-xs mt-2 ${saldo > 0 ? 'text-emerald-600' : (saldo < 0 ? 'text-red-500' : 'text-gray-500')}">
+                            ${saldo > 0 ? 'Te betalen aan speler' : (saldo < 0 ? 'Ontvangen van speler' : 'Quitte')}
                         </div>
                     ` : ''}
                 </div>
