@@ -190,10 +190,17 @@ $hasWinningNumbers = !empty($winningData);
                     </div>
                     <div id="winning-numbers-container">
                         <?php if ($hasWinningNumbers): ?>
-                            <div class="flex flex-wrap gap-1.5">
-                                <?php foreach ($winningData as $num): ?>
-                                    <span class="w-7 h-7 flex items-center justify-center text-xs font-medium bg-emerald-100 text-emerald-700 rounded-md"><?= $num ?></span>
-                                <?php endforeach; ?>
+                            <div class="space-y-1.5">
+                                <div class="grid grid-cols-10 gap-1">
+                                    <?php for ($i = 0; $i < 10 && $i < count($winningData); $i++): ?>
+                                        <span class="w-7 h-7 flex items-center justify-center text-xs font-medium bg-emerald-100 text-emerald-700 rounded-md"><?= $winningData[$i] ?></span>
+                                    <?php endfor; ?>
+                                </div>
+                                <div class="grid grid-cols-10 gap-1">
+                                    <?php for ($i = 10; $i < 20 && $i < count($winningData); $i++): ?>
+                                        <span class="w-7 h-7 flex items-center justify-center text-xs font-medium bg-emerald-100 text-emerald-700 rounded-md"><?= $winningData[$i] ?></span>
+                                    <?php endfor; ?>
+                                </div>
                             </div>
                         <?php else: ?>
                             <p class="text-sm text-gray-400">Nog niet beschikbaar</p>
@@ -1005,11 +1012,17 @@ $hasWinningNumbers = !empty($winningData);
                     statusEl.textContent = 'Gelukt!';
                     stopScraperRetry();
                     
-                    let html = '<div class="flex flex-wrap gap-1.5">';
-                    data.numbers.forEach(num => {
+                    let html = '<div class="space-y-1.5">';
+                    html += '<div class="grid grid-cols-10 gap-1">';
+                    data.numbers.slice(0, 10).forEach(num => {
                         html += `<span class="w-7 h-7 flex items-center justify-center text-xs font-medium bg-emerald-100 text-emerald-700 rounded-md">${num}</span>`;
                     });
                     html += '</div>';
+                    html += '<div class="grid grid-cols-10 gap-1">';
+                    data.numbers.slice(10, 20).forEach(num => {
+                        html += `<span class="w-7 h-7 flex items-center justify-center text-xs font-medium bg-emerald-100 text-emerald-700 rounded-md">${num}</span>`;
+                    });
+                    html += '</div></div>';
                     container.innerHTML = html;
                     
                     setTimeout(() => location.reload(), 1000);
