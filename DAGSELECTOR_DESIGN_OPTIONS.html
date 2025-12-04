@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dagselector Design Opties</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #F9FAFB;
+        }
+        
+        /* Shared styles */
+        .option-container {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 48px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .option-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #1F2937;
+        }
+        
+        .option-subtitle {
+            font-size: 14px;
+            color: #6B7280;
+            margin-bottom: 24px;
+        }
+        
+        /* Option 1: Minimal Clean */
+        .option1-day {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1.5px solid #E5E7EB;
+            background: white;
+            font-size: 13px;
+            color: #6B7280;
+            transition: all 0.2s;
+            position: relative;
+            min-width: 70px;
+            gap: 4px;
+        }
+        
+        .option1-day:hover {
+            border-color: #2ECC71;
+            background: #F0FDF4;
+        }
+        
+        .option1-day.active {
+            background: #2ECC71;
+            color: white;
+            border-color: #2ECC71;
+            font-weight: 600;
+        }
+        
+        .option1-day::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 3px 3px 0 0;
+            background: #2ECC71;
+            opacity: 0;
+        }
+        
+        .option1-day.has-data::after {
+            opacity: 0.4;
+            height: 2px;
+        }
+        
+        .option1-day.has-data-full::after {
+            opacity: 1;
+            height: 3px;
+        }
+        
+        /* Option 2: Compact Inline */
+        .option2-day {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            background: #F3F4F6;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6B7280;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        .option2-day:hover {
+            background: #E5E7EB;
+            border-color: #2ECC71;
+        }
+        
+        .option2-day.active {
+            background: #2ECC71;
+            color: white;
+            border-color: #2ECC71;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+        }
+        
+        .option2-indicator {
+            position: absolute;
+            bottom: 4px;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #2ECC71;
+        }
+        
+        /* Option 3: Week Cards */
+        .option3-week {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #E5E7EB;
+            padding: 16px;
+            display: inline-block;
+            margin-right: 12px;
+        }
+        
+        .option3-week-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #2ECC71;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        
+        .option3-day {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            font-size: 12px;
+            color: #6B7280;
+            transition: all 0.2s;
+            position: relative;
+            gap: 2px;
+        }
+        
+        .option3-day:hover {
+            background: #F3F4F6;
+            border-color: #2ECC71;
+        }
+        
+        .option3-day.active {
+            background: #2ECC71;
+            color: white;
+            font-weight: 600;
+        }
+        
+        /* Option 4: Timeline Style */
+        .option4-container {
+            position: relative;
+            padding: 24px 0;
+        }
+        
+        .option4-timeline {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #E5E7EB;
+            z-index: 0;
+        }
+        
+        .option4-day {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .option4-dot {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #E5E7EB;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 500;
+            color: #6B7280;
+            transition: all 0.2s;
+        }
+        
+        .option4-day:hover .option4-dot {
+            border-color: #2ECC71;
+            background: #F0FDF4;
+        }
+        
+        .option4-day.active .option4-dot {
+            width: 48px;
+            height: 48px;
+            background: #2ECC71;
+            border-color: #2ECC71;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+        }
+        
+        .option4-label {
+            font-size: 11px;
+            color: #9CA3AF;
+        }
+        
+        .option4-day.active .option4-label {
+            color: #2ECC71;
+            font-weight: 600;
+        }
+        
+        /* Option 5: Gradient Cards */
+        .option5-day {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 14px 18px;
+            border-radius: 16px;
+            background: white;
+            border: 1px solid #E5E7EB;
+            font-size: 13px;
+            color: #6B7280;
+            transition: all 0.3s;
+            position: relative;
+            min-width: 72px;
+            gap: 4px;
+            overflow: hidden;
+        }
+        
+        .option5-day::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.1) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .option5-day:hover::before {
+            opacity: 1;
+        }
+        
+        .option5-day:hover {
+            border-color: #2ECC71;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        .option5-day.active {
+            background: linear-gradient(135deg, #2ECC71 0%, #27AE60 100%);
+            color: white;
+            border-color: #2ECC71;
+            font-weight: 600;
+            box-shadow: 0 8px 16px rgba(46, 204, 113, 0.3);
+        }
+        
+        .option5-day.active::before {
+            opacity: 0;
+        }
+        
+        /* Legend */
+        .legend {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #F3F4F6;
+            font-size: 12px;
+            color: #6B7280;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .legend-line {
+            width: 24px;
+            height: 3px;
+            border-radius: 2px;
+            background: #2ECC71;
+        }
+        
+        .legend-line.thin {
+            height: 2px;
+            opacity: 0.4;
+        }
+        
+        /* Navigation */
+        .nav-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid #E5E7EB;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6B7280;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .nav-btn:hover {
+            background: #F9FAFB;
+            border-color: #2ECC71;
+            color: #2ECC71;
+        }
+        
+        /* Scroll container */
+        .scroll-container {
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(46, 204, 113, 0.3) transparent;
+            padding: 8px 0;
+        }
+        
+        .scroll-container::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .scroll-container::-webkit-scrollbar-track {
+            background: #F3F4F6;
+            border-radius: 3px;
+        }
+        
+        .scroll-container::-webkit-scrollbar-thumb {
+            background: rgba(46, 204, 113, 0.3);
+            border-radius: 3px;
+        }
+        
+        .scroll-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(46, 204, 113, 0.5);
+        }
+        
+        .day-wrapper {
+            display: inline-flex;
+            gap: 6px;
+            padding: 4px;
+        }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-4xl font-bold mb-3 text-gray-900">Dagselector Design Opties</h1>
+        <p class="text-gray-600 mb-12">Kies welk design je het mooist vindt voor implementatie</p>
+        
+        <!-- Option 1: Minimal Clean -->
+        <div class="option-container">
+            <div class="option-title">1. Minimal Clean (Huidige stijl verbeterd)</div>
+            <div class="option-subtitle">✅ Behoudt de onderlijn indicatoren | ✅ Simpel en schoon | ✅ Focus op de dagen zelf</div>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <button class="nav-btn">←</button>
+                <button class="nav-btn">→</button>
+            </div>
+            
+            <div class="scroll-container">
+                <div class="day-wrapper">
+                    <div class="option1-day has-data">
+                        <span style="font-size: 10px; opacity: 0.6;">ma</span>
+                        <span style="font-weight: 600;">25 nov</span>
+                    </div>
+                    <div class="option1-day has-data-full">
+                        <span style="font-size: 10px; opacity: 0.6;">di</span>
+                        <span style="font-weight: 600;">26 nov</span>
+                    </div>
+                    <div class="option1-day has-data">
+                        <span style="font-size: 10px; opacity: 0.6;">wo</span>
+                        <span style="font-weight: 600;">27 nov</span>
+                    </div>
+                    <div class="option1-day active">
+                        <span style="font-size: 10px; opacity: 0.9;">vr</span>
+                        <span style="font-weight: 600;">28 nov</span>
+                    </div>
+                    <div class="option1-day">
+                        <span style="font-size: 10px; opacity: 0.6;">za</span>
+                        <span style="font-weight: 600;">29 nov</span>
+                    </div>
+                    <div class="option1-day">
+                        <span style="font-size: 10px; opacity: 0.6;">zo</span>
+                        <span style="font-weight: 600;">30 nov</span>
+                    </div>
+                    <div class="option1-day">
+                        <span style="font-size: 10px; opacity: 0.6;">ma</span>
+                        <span style="font-weight: 600;">01 dec</span>
+                    </div>
+                    <div class="option1-day">
+                        <span style="font-size: 10px; opacity: 0.6;">di</span>
+                        <span style="font-weight: 600;">02 dec</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-line thin"></div>
+                    <span>Nummers opgehaald</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line"></div>
+                    <span>Bonnen toegevoegd</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Option 2: Compact Inline -->
+        <div class="option-container">
+            <div class="option-title">2. Compact Inline (Ronde knoppen)</div>
+            <div class="option-subtitle">✨ Modern en speels | 🎯 Compact | ⚡ Snelle overview</div>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <button class="nav-btn">←</button>
+                <button class="nav-btn">→</button>
+            </div>
+            
+            <div class="scroll-container">
+                <div class="day-wrapper">
+                    <div class="option2-day has-data" style="position: relative;">
+                        25
+                        <div class="option2-indicator"></div>
+                    </div>
+                    <div class="option2-day has-data-full" style="position: relative;">
+                        26
+                        <div class="option2-indicator" style="width: 6px; height: 6px;"></div>
+                    </div>
+                    <div class="option2-day">27</div>
+                    <div class="option2-day active">28</div>
+                    <div class="option2-day">29</div>
+                    <div class="option2-day">30</div>
+                    <div class="option2-day">01</div>
+                    <div class="option2-day">02</div>
+                    <div class="option2-day">03</div>
+                    <div class="option2-day">04</div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: #2ECC71; opacity: 0.5;"></div>
+                    <span>Nummers opgehaald</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 6px; height: 6px; border-radius: 50%; background: #2ECC71;"></div>
+                    <span>Bonnen toegevoegd</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Option 3: Week Cards -->
+        <div class="option-container">
+            <div class="option-title">3. Week Cards (Gegroepeerd per week)</div>
+            <div class="option-subtitle">📅 Duidelijke week structuur | 🗂️ Georganiseerd | 👁️ Overzichtelijk</div>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <button class="nav-btn">←</button>
+                <button class="nav-btn">→</button>
+            </div>
+            
+            <div class="scroll-container">
+                <div style="display: inline-flex; gap: 12px; padding: 4px;">
+                    <div class="option3-week">
+                        <div class="option3-week-label">Week 48</div>
+                        <div style="display: flex; gap: 4px;">
+                            <div class="option3-day">
+                                <span style="font-size: 10px; color: #9CA3AF;">ma</span>
+                                <span>25</span>
+                            </div>
+                            <div class="option3-day">
+                                <span style="font-size: 10px; color: #9CA3AF;">di</span>
+                                <span>26</span>
+                            </div>
+                            <div class="option3-day">
+                                <span style="font-size: 10px; color: #9CA3AF;">wo</span>
+                                <span>27</span>
+                            </div>
+                            <div class="option3-day active">
+                                <span style="font-size: 10px; opacity: 0.9;">vr</span>
+                                <span>28</span>
+                            </div>
+                            <div class="option3-day">
+                                <span style="font-size: 10px; color: #9CA3AF;">za</span>
+                                <span>29</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="option3-week">
+                        <div class="option3-week-label">Week 49</div>
+                        <div style="display: flex; gap: 4px;">
+                            <div class="option3-day">
+                                <span style="font-size: 10px; color: #9CA3AF;">ma</span>
+                                <span>01</span>
+                            </div>
+                            <div class="option3-day">
+                                <span style="font-size: 10px; color: #9CA3AF;">di</span>
+                                <span>02</span>
+                            </div>
+                            <div class="option3-day">
+                                <span style="font-size: 10px; color: #9CA3AF;">wo</span>
+                                <span>03</span>
+                            </div>
+                            <div class="option3-day">
+                                <span style="font-size: 10px; color: #9CA3AF;">do</span>
+                                <span>04</span>
+                            </div>
+                            <div class="option3-day">
+                                <span style="font-size: 10px; color: #9CA3AF;">vr</span>
+                                <span>05</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-line thin"></div>
+                    <span>Nummers opgehaald</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line"></div>
+                    <span>Bonnen toegevoegd</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Option 4: Timeline Style -->
+        <div class="option-container">
+            <div class="option-title">4. Timeline Style (Chronologisch)</div>
+            <div class="option-subtitle">⏰ Visuele tijdlijn | 🎯 Focus op datum flow | 🌊 Vloeiend</div>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <button class="nav-btn">←</button>
+                <button class="nav-btn">→</button>
+            </div>
+            
+            <div class="scroll-container">
+                <div class="option4-container" style="display: inline-flex; gap: 32px; padding: 4px;">
+                    <div class="option4-timeline"></div>
+                    
+                    <div class="option4-day">
+                        <div class="option4-dot">25</div>
+                        <div class="option4-label">ma</div>
+                    </div>
+                    <div class="option4-day">
+                        <div class="option4-dot">26</div>
+                        <div class="option4-label">di</div>
+                    </div>
+                    <div class="option4-day">
+                        <div class="option4-dot">27</div>
+                        <div class="option4-label">wo</div>
+                    </div>
+                    <div class="option4-day active">
+                        <div class="option4-dot">28</div>
+                        <div class="option4-label">vr</div>
+                    </div>
+                    <div class="option4-day">
+                        <div class="option4-dot">29</div>
+                        <div class="option4-label">za</div>
+                    </div>
+                    <div class="option4-day">
+                        <div class="option4-dot">30</div>
+                        <div class="option4-label">zo</div>
+                    </div>
+                    <div class="option4-day">
+                        <div class="option4-dot">01</div>
+                        <div class="option4-label">ma</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div style="width: 24px; height: 2px; background: #E5E7EB;"></div>
+                    <span>Tijdlijn</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Option 5: Gradient Cards -->
+        <div class="option-container">
+            <div class="option-title">5. Gradient Cards (Premium look)</div>
+            <div class="option-subtitle">✨ Moderne gradient | 💎 Premium uitstraling | 🎨 Visueel aantrekkelijk</div>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <button class="nav-btn">←</button>
+                <button class="nav-btn">→</button>
+            </div>
+            
+            <div class="scroll-container">
+                <div class="day-wrapper">
+                    <div class="option5-day">
+                        <span style="font-size: 10px; opacity: 0.6;">ma</span>
+                        <span style="font-weight: 600;">25 nov</span>
+                    </div>
+                    <div class="option5-day">
+                        <span style="font-size: 10px; opacity: 0.6;">di</span>
+                        <span style="font-weight: 600;">26 nov</span>
+                    </div>
+                    <div class="option5-day">
+                        <span style="font-size: 10px; opacity: 0.6;">wo</span>
+                        <span style="font-weight: 600;">27 nov</span>
+                    </div>
+                    <div class="option5-day active">
+                        <span style="font-size: 10px; opacity: 0.9;">vr</span>
+                        <span style="font-weight: 600;">28 nov</span>
+                    </div>
+                    <div class="option5-day">
+                        <span style="font-size: 10px; opacity: 0.6;">za</span>
+                        <span style="font-weight: 600;">29 nov</span>
+                    </div>
+                    <div class="option5-day">
+                        <span style="font-size: 10px; opacity: 0.6;">zo</span>
+                        <span style="font-weight: 600;">30 nov</span>
+                    </div>
+                    <div class="option5-day">
+                        <span style="font-size: 10px; opacity: 0.6;">ma</span>
+                        <span style="font-weight: 600;">01 dec</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-line thin"></div>
+                    <span>Nummers opgehaald</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line"></div>
+                    <span>Bonnen toegevoegd</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Summary -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 mt-8">
+            <h3 class="text-lg font-semibold text-blue-900 mb-3">📝 Keuze hulp:</h3>
+            <div class="space-y-2 text-sm text-blue-800">
+                <p><strong>Optie 1:</strong> Als je de huidige stijl goed vindt, maar rustiger wilt (mijn aanbeveling)</p>
+                <p><strong>Optie 2:</strong> Als je een compact, modern design wilt met ronde knoppen</p>
+                <p><strong>Optie 3:</strong> Als je duidelijke week structuur belangrijk vindt</p>
+                <p><strong>Optie 4:</strong> Als je een visuele tijdlijn mooi vindt</p>
+                <p><strong>Optie 5:</strong> Als je de meest moderne, premium look wilt</p>
+            </div>
+        </div>
+        
+        <div class="mt-8 p-6 bg-amber-50 border border-amber-200 rounded-xl">
+            <h3 class="text-lg font-semibold text-amber-900 mb-2">🔧 Scroll probleem oplossing:</h3>
+            <p class="text-sm text-amber-800">Alle opties zullen direct op de juiste dag openen ZONDER visuele scroll. Dit wordt opgelost door de scroll positie te berekenen VOORDAT de pagina zichtbaar wordt (met CSS: <code>opacity: 0</code> tijdens laden).</p>
+        </div>
+    </div>
+</body>
+</html>
+
+

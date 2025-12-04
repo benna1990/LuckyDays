@@ -1,8 +1,19 @@
 <?php
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
+
+// Secure session configuration
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => false, // Set to true in production with HTTPS
+    'httponly' => true,
+    'samesite' => 'Strict'
+]);
+
 session_start();
 require_once 'config.php';
+require_once 'audit_log.php';
 
 if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
     $base = dirname($_SERVER['PHP_SELF']);
@@ -25,21 +36,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($result && pg_num_rows($result) > 0) {
             $user = pg_fetch_assoc($result);
             
-            if ($password === $user['password'] || password_verify($password, $user['password'])) {
+            if (password_verify($password, $user['password'])) {
                 session_regenerate_id(true);
                 $_SESSION['admin_logged_in'] = true;
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['role'] = $user['role'] ?? 'user';
                 $_SESSION['user_id'] = $user['id'];
+
+                add_audit_log($conn, 'login', 'admin', $user['id'], [
+                    'username' => $user['username']
+                ]);
                 
                 $base = dirname($_SERVER['PHP_SELF']);
                 header("Location: $base/dashboard.php");
                 exit();
             } else {
                 $error = 'Onjuist wachtwoord';
+                add_audit_log($conn, 'login_failed', 'admin', $user['id'], [
+                    'username' => $username,
+                    'reason' => 'wrong_password'
+                ]);
             }
         } else {
             $error = 'Gebruiker niet gevonden';
+            add_audit_log($conn, 'login_failed', 'admin', null, [
+                'username' => $username,
+                'reason' => 'user_not_found'
+            ]);
         }
     } else {
         $error = 'Vul alle velden in';

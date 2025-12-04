@@ -5,6 +5,7 @@ ini_set('display_errors', 0);
 session_start();
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../audit_log.php';
 
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
@@ -27,15 +28,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $playerId = intval($input['player_id'] ?? 0);
         $date = $input['date'] ?? date('Y-m-d');
         $bonName = trim($input['name'] ?? '');
+        $bonnummer = trim($input['bonnummer'] ?? '');
+        $activeWinkelId = $_SESSION['selected_winkel'] ?? null;
         
         if ($playerId <= 0) {
             echo json_encode(['success' => false, 'error' => 'Ongeldige speler']);
             exit();
         }
         
-        $bonId = createBon($conn, $playerId, $date, $bonName ?: null);
+        if ($activeWinkelId === null) {
+            echo json_encode(['success' => false, 'error' => 'Selecteer eerst een winkel']);
+            exit();
+        }
+        
+        $bonId = createBon($conn, $playerId, $date, $bonName ?: null, $bonnummer ?: null, $activeWinkelId);
         
         if ($bonId) {
+            logBonAction($conn, $bonId, 'create', [
+                'player_id' => $playerId,
+                'date' => $date,
+                'bonnummer' => $bonnummer ?: null,
+                'winkel_id' => $activeWinkelId
+            ]);
+            add_audit_log($conn, 'bon_create', 'bon', $bonId, [
+                'player_id' => $playerId,
+                'date' => $date,
+                'bonnummer' => $bonnummer ?: null,
+                'winkel_id' => $activeWinkelId
+            ]);
             echo json_encode(['success' => true, 'id' => $bonId]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Kon bon niet aanmaken']);
@@ -46,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $playerName = trim($_POST['player_name'] ?? '');
     $date = $_POST['date'] ?? date('Y-m-d');
     $bonName = trim($_POST['name'] ?? '');
+    $bonnummer = trim($_POST['bonnummer'] ?? '');
     
     if (empty($playerName)) {
         header('Location: ../dashboard.php?date=' . $date . '&error=no_player');
@@ -56,20 +77,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (!$player) {
         $color = generateUniqueColor($conn);
-        $result = addPlayer($conn, $playerName, $color);
+        $activeWinkelId = $_SESSION['selected_winkel'] ?? null;
+        if ($activeWinkelId === null) {
+            header('Location: ../dashboard.php?date=' . $date . '&error=no_winkel');
+            exit();
+        }
+
+        $result = addPlayer($conn, $playerName, $color, $activeWinkelId);
         
         if (!$result['success']) {
             header('Location: ../dashboard.php?date=' . $date . '&error=create_player_failed');
             exit();
         }
         $playerId = $result['id'];
+        add_audit_log($conn, 'player_create', 'player', $playerId, [
+            'name' => $playerName,
+            'color' => $color,
+            'winkel_id' => $activeWinkelId
+        ]);
     } else {
         $playerId = $player['id'];
     }
     
-    $bonId = createBon($conn, $playerId, $date, $bonName ?: null);
+    $activeWinkelId = $_SESSION['selected_winkel'] ?? null;
+    if ($activeWinkelId === null) {
+        header('Location: ../dashboard.php?date=' . $date . '&error=no_winkel');
+        exit();
+    }
+
+    $bonId = createBon($conn, $playerId, $date, $bonName ?: null, $bonnummer ?: null, $activeWinkelId);
     
     if ($bonId) {
+        logBonAction($conn, $bonId, 'create', [
+            'player_id' => $playerId,
+            'date' => $date,
+            'bonnummer' => $bonnummer ?: null,
+            'winkel_id' => $activeWinkelId
+        ]);
+        add_audit_log($conn, 'bon_create', 'bon', $bonId, [
+            'player_id' => $playerId,
+            'date' => $date,
+            'bonnummer' => $bonnummer ?: null,
+            'winkel_id' => $activeWinkelId
+        ]);
         header('Location: ../bon.php?id=' . $bonId);
     } else {
         header('Location: ../dashboard.php?date=' . $date . '&error=create_failed');

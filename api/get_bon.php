@@ -13,7 +13,7 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit();
 }
 
-$bonId = intval($_GET['id'] ?? 0);
+$bonId = intval($_GET['id'] ?? $_GET['bon_id'] ?? 0);
 
 if (!$bonId) {
     echo json_encode(['success' => false, 'error' => 'Geen bon ID']);
@@ -28,6 +28,44 @@ if (!$bon) {
 
 $rijen = getRijenByBonId($conn, $bonId);
 $winningNumbers = getWinningNumbersFromDatabase($bon['date'], $conn);
+
+// Safety net: always recalc rijen when winnende nummers bekend zijn,
+// zodat eerder opgeslagen bonnen live up-to-date blijven.
+if ($winningNumbers && is_array($winningNumbers) && count($winningNumbers) > 0 && $rijen) {
+    foreach ($rijen as &$rij) {
+        $calc = recalculateRijWinnings($conn, $rij['id'], $winningNumbers);
+        if ($calc) {
+            $rij['matches'] = $calc['matches'];
+            $rij['multiplier'] = $calc['multiplier'];
+            $rij['winnings'] = $calc['winnings'];
+            $rij['game_type'] = $calc['game_type'];
+        }
+    }
+    unset($rij);
+}
+
+// Check if this bon is part of a trekking group
+$trekkingInfo = null;
+if (!empty($bon['trekking_groep_id'])) {
+    $groepQuery = "
+        SELECT
+            COUNT(*) as aantal_trekkingen,
+            MIN(date) as start_datum,
+            MAX(date) as eind_datum
+        FROM bons
+        WHERE trekking_groep_id = $1
+    ";
+    $groepResult = db_query($groepQuery, [$bon['trekking_groep_id']]);
+    $groepData = db_fetch_assoc($groepResult);
+
+    if ($groepData && $groepData['aantal_trekkingen'] > 1) {
+        $trekkingInfo = [
+            'aantal_trekkingen' => (int)$groepData['aantal_trekkingen'],
+            'start_datum' => $groepData['start_datum'],
+            'eind_datum' => $groepData['eind_datum']
+        ];
+    }
+}
 
 $totalBet = 0;
 $totalWinnings = 0;
@@ -63,7 +101,9 @@ echo json_encode([
         'player_name' => $bon['player_name'],
         'player_color' => $bon['player_color'],
         'date' => $bon['date'],
-        'name' => $bon['name']
+        'name' => $bon['name'],
+        'bonnummer' => $bon['bonnummer'] ?? null,
+        'winkel_naam' => $bon['winkel_naam'] ?? 'Geen winkel'
     ],
     'rijen' => $rijenData,
     'winning_numbers' => $winningNumbers ? array_map('intval', $winningNumbers) : [],
@@ -71,5 +111,6 @@ echo json_encode([
         'bet' => $totalBet,
         'winnings' => $totalWinnings
         // Saldo wordt nu in JavaScript berekend met correcte huis-logica
-    ]
+    ],
+    'trekking_info' => $trekkingInfo
 ]);

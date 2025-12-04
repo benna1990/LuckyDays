@@ -1,10 +1,13 @@
 <?php
-// Get PostgreSQL connection details from environment variables
-$host = '127.0.0.1';
-$db = 'luckydays';
-$user = 'postgres';
-$pass = '';
-$port = '5432';
+// Set timezone to Amsterdam (Netherlands)
+date_default_timezone_set('Europe/Amsterdam');
+
+// Get PostgreSQL connection details from environment variables or use defaults
+$host = getenv('DB_HOST') ?: '127.0.0.1';
+$db = getenv('DB_NAME') ?: 'luckydays';
+$user = getenv('DB_USER') ?: 'postgres';
+$pass = getenv('DB_PASSWORD') ?: '';
+$port = getenv('DB_PORT') ?: '5432';
 
 // Create connection string
 $conn_string = "host=$host port=$port dbname=$db user=$user password=$pass";
@@ -14,13 +17,34 @@ $conn = pg_connect($conn_string);
 
 // Check the connection
 if (!$conn) {
-    die("Connection failed: " . pg_last_error());
+    $error = pg_last_error();
+    error_log("Database Connection Error: " . $error);
+    
+    // Show user-friendly error message
+    if (getenv('APP_ENV') === 'production') {
+        die("Database connection failed. Please contact support.");
+    } else {
+        die("Connection failed: " . $error);
+    }
 }
 
 // Helper function to prepare and execute queries (compatibility layer)
 function db_query($query, $params = []) {
     global $conn;
     $result = pg_query_params($conn, $query, $params);
+    
+    if (!$result) {
+        $error = pg_last_error($conn);
+        error_log("Database Error: " . $error . " | Query: " . $query);
+        
+        // In development, show detailed error. In production, show generic message
+        if (getenv('APP_ENV') === 'production') {
+            throw new Exception("Database query failed");
+        } else {
+            throw new Exception("Database Error: " . $error);
+        }
+    }
+    
     return $result;
 }
 

@@ -5,6 +5,7 @@ ini_set('display_errors', 0);
 session_start();
 require_once '../config.php';
 require_once '../functions.php';
+require_once '../audit_log.php';
 
 header('Content-Type: application/json');
 
@@ -34,6 +35,12 @@ if (!$bon) {
 $date = $bon['date'];
 
 if (deleteBon($conn, $bonId)) {
+    logBonAction($conn, $bonId, 'delete_bon', [
+        'bonnummer' => $bon['bonnummer'],
+        'date' => $bon['date'],
+        'player' => $bon['player_name'] ?? null,
+        'winkel' => $bon['winkel_naam'] ?? null
+    ]);
     echo json_encode(['success' => true, 'date' => $date]);
 } else {
     echo json_encode(['success' => false, 'error' => 'Kon bon niet verwijderen']);

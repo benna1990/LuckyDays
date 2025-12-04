@@ -131,7 +131,11 @@ async function scrapeLuckyDayNumbers(date, retries = 3) {
     return { success: false, error: 'Max retries bereikt' };
 }
 
-const date = process.argv[2] || new Date().toISOString().split('T')[0];
+function getAmsterdamDateString() {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Amsterdam' }).format(new Date());
+}
+
+const date = process.argv[2] || getAmsterdamDateString();
 scrapeLuckyDayNumbers(date).then(result => {
     console.log(JSON.stringify(result));
 }).catch(err => {

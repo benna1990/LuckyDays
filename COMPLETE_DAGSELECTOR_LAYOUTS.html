@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scroll Animatie Demo - Test Alle Opties</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #F3F4F6;
+        }
+        
+        .demo-section {
+            background: white;
+            border-radius: 20px;
+            padding: 48px;
+            margin-bottom: 48px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        
+        .option-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            background: #2ECC71;
+            color: white;
+            border-radius: 50%;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+        
+        /* Dagselector Styling */
+        .date-selector {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            padding: 20px;
+            margin-top: 24px;
+        }
+        
+        .date-selector-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 16px;
+        }
+        
+        .date-scroll-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .date-track {
+            flex: 1;
+            background: #F9FAFB;
+            border-radius: 12px;
+            padding: 10px;
+            padding-top: 28px;
+            position: relative;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(46, 204, 113, 0.3) #F3F4F6;
+            min-width: 0;
+        }
+        
+        .date-track::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .date-track::-webkit-scrollbar-track {
+            background: #F3F4F6;
+            border-radius: 3px;
+        }
+        
+        .date-track::-webkit-scrollbar-thumb {
+            background: rgba(46, 204, 113, 0.3);
+            border-radius: 3px;
+        }
+        
+        /* Scroll Snap voor optie 2 */
+        .date-track.snap-scroll {
+            scroll-snap-type: x mandatory;
+            scroll-padding: 0 50%;
+        }
+        
+        .date-track.snap-scroll .date-btn {
+            scroll-snap-align: center;
+        }
+        
+        .date-track-inner {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+        }
+        
+        .week-group {
+            position: relative;
+            display: inline-flex;
+            gap: 6px;
+        }
+        
+        .week-label {
+            position: absolute;
+            top: -20px;
+            left: 0;
+            font-size: 10px;
+            color: #9CA3AF;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        
+        .week-separator {
+            width: 1px;
+            height: 52px;
+            background: linear-gradient(to bottom, transparent, #E5E7EB 20%, #E5E7EB 80%, transparent);
+            margin: 0 8px;
+            flex-shrink: 0;
+        }
+        
+        .date-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 12px 12px 12px;
+            border-radius: 10px;
+            background: white;
+            min-width: 58px;
+            border: 1px solid #E5E7EB;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+            position: relative;
+        }
+        
+        .date-btn:hover {
+            transform: translateY(-2px);
+            border-color: #2ECC71;
+        }
+        
+        .date-btn .day-name {
+            font-size: 10px;
+            color: #9CA3AF;
+        }
+        
+        .date-btn .day-number {
+            font-size: 14px;
+            color: #374151;
+            font-weight: 600;
+            margin-top: 1px;
+        }
+        
+        .date-btn .month-name {
+            font-size: 10px;
+            color: #9CA3AF;
+            margin-top: 1px;
+        }
+        
+        .date-btn.active {
+            background: #2ECC71;
+            border: 1px solid #2ECC71;
+            color: white;
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.35);
+        }
+        
+        .date-btn.active .day-name,
+        .date-btn.active .day-number,
+        .date-btn.active .month-name {
+            color: white;
+        }
+        
+        .date-btn.active .day-number {
+            font-size: 16px;
+            font-weight: 700;
+        }
+        
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            color: #6B7280;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-icon:hover {
+            background: #F9FAFB;
+            border-color: #2ECC71;
+            color: #2ECC71;
+        }
+        
+        /* Indicator */
+        .indicator-container {
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .indicator-line {
+            width: 18px;
+            background: #2ECC71;
+            border-radius: 1px;
+        }
+        
+        .indicator-line.thin {
+            height: 2px;
+            opacity: 0.5;
+        }
+        
+        .indicator-line.thick {
+            height: 3px;
+            opacity: 1;
+        }
+        
+        .date-btn.active .indicator-line {
+            background: white;
+        }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-5xl font-bold mb-4 text-gray-900">🎯 Scroll Animatie Test</h1>
+            <p class="text-xl text-gray-600 mb-2">Test alle scroll opties en kies je favoriet</p>
+            <p class="text-sm text-gray-500">Klik op verschillende dagen om het scroll gedrag te testen</p>
+        </div>
+        
+        <!-- OPTIE 1: Smooth Center -->
+        <div class="demo-section">
+            <div class="option-badge">1</div>
+            <h2 class="text-3xl font-bold mb-2">Smooth Center Scroll</h2>
+            <p class="text-gray-600 mb-1">Vloeiende animatie die de geselecteerde dag precies in het midden plaatst</p>
+            <p class="text-sm text-gray-500 mb-4">• Smooth scroll behavior • Gecentreerd • Duidelijk doel</p>
+            
+            <div class="date-selector">
+                <div class="date-selector-header">
+                    <h3 class="text-lg font-bold">Dagoverzicht</h3>
+                    <div class="date-scroll-container">
+                        <button class="btn-icon" onclick="scrollDemo1('left')">←</button>
+                        <div class="date-track" id="track1" style="scroll-behavior: smooth;">
+                            <div class="date-track-inner" id="inner1"></div>
+                        </div>
+                        <button class="btn-icon" onclick="scrollDemo1('right')">→</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- OPTIE 2: Scroll Snap -->
+        <div class="demo-section">
+            <div class="option-badge">2</div>
+            <h2 class="text-3xl font-bold mb-2">CSS Scroll Snap</h2>
+            <p class="text-gray-600 mb-1">Native browser scroll-snap: swipe/scroll snapt automatisch naar dichtstbijzijnde dag</p>
+            <p class="text-sm text-gray-500 mb-4">• CSS scroll-snap • Auto-centering • Native feel</p>
+            
+            <div class="date-selector">
+                <div class="date-selector-header">
+                    <h3 class="text-lg font-bold">Dagoverzicht</h3>
+                    <div class="date-scroll-container">
+                        <button class="btn-icon" onclick="scrollDemo2('left')">←</button>
+                        <div class="date-track snap-scroll" id="track2">
+                            <div class="date-track-inner" id="inner2"></div>
+                        </div>
+                        <button class="btn-icon" onclick="scrollDemo2('right')">→</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- OPTIE 3: ScrollIntoView -->
+        <div class="demo-section">
+            <div class="option-badge">3</div>
+            <h2 class="text-3xl font-bold mb-2">ScrollIntoView Smooth</h2>
+            <p class="text-gray-600 mb-1">Browser native scrollIntoView met smooth behavior</p>
+            <p class="text-sm text-gray-500 mb-4">• Native API • Zorgt voor zichtbaarheid • Center alignment</p>
+            
+            <div class="date-selector">
+                <div class="date-selector-header">
+                    <h3 class="text-lg font-bold">Dagoverzicht</h3>
+                    <div class="date-scroll-container">
+                        <button class="btn-icon" onclick="scrollDemo3('left')">←</button>
+                        <div class="date-track" id="track3">
+                            <div class="date-track-inner" id="inner3"></div>
+                        </div>
+                        <button class="btn-icon" onclick="scrollDemo3('right')">→</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- OPTIE 4: Natural Position -->
+        <div class="demo-section">
+            <div class="option-badge">4</div>
+            <h2 class="text-3xl font-bold mb-2">Natural Position (Geen Centering)</h2>
+            <p class="text-gray-600 mb-1">Dag blijft op natuurlijke positie in de week, geen centering</p>
+            <p class="text-sm text-gray-500 mb-4">• Meer context zichtbaar • Natuurlijker • Geen geforceerde scroll</p>
+            
+            <div class="date-selector">
+                <div class="date-selector-header">
+                    <h3 class="text-lg font-bold">Dagoverzicht</h3>
+                    <div class="date-scroll-container">
+                        <button class="btn-icon" onclick="scrollDemo4('left')">←</button>
+                        <div class="date-track" id="track4">
+                            <div class="date-track-inner" id="inner4"></div>
+                        </div>
+                        <button class="btn-icon" onclick="scrollDemo4('right')">→</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Summary -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; padding: 48px; color: white; text-align: center;">
+            <h2 class="text-4xl font-bold mb-4">Welke vind je het beste?</h2>
+            <p class="text-xl opacity-95 mb-8">Test alle opties door op verschillende dagen te klikken</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+                <div class="bg-white bg-opacity-20 backdrop-blur-lg rounded-xl p-6">
+                    <div class="text-4xl font-bold mb-2">1</div>
+                    <div class="text-sm">Smooth Center</div>
+                </div>
+                <div class="bg-white bg-opacity-20 backdrop-blur-lg rounded-xl p-6">
+                    <div class="text-4xl font-bold mb-2">2</div>
+                    <div class="text-sm">Scroll Snap</div>
+                </div>
+                <div class="bg-white bg-opacity-20 backdrop-blur-lg rounded-xl p-6">
+                    <div class="text-4xl font-bold mb-2">3</div>
+                    <div class="text-sm">ScrollIntoView</div>
+                </div>
+                <div class="bg-white bg-opacity-20 backdrop-blur-lg rounded-xl p-6">
+                    <div class="text-4xl font-bold mb-2">4</div>
+                    <div class="text-sm">Natural</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Generate 3 months of dates (90 days back from today)
+        function generateDates() {
+            const dates = [];
+            const today = new Date();
+            for (let i = 90; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                dates.push(date);
+            }
+            return dates;
+        }
+        
+        // Dutch day and month names
+        const dayNames = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+        const monthNames = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+        
+        // Group dates by week
+        function groupByWeek(dates) {
+            const weeks = {};
+            dates.forEach(date => {
+                const weekNum = getWeekNumber(date);
+                const year = date.getFullYear();
+                const key = `${year}-W${weekNum}`;
+                if (!weeks[key]) {
+                    weeks[key] = {
+                        label: `Week ${weekNum}`,
+                        dates: []
+                    };
+                }
+                weeks[key].dates.push(date);
+            });
+            return weeks;
+        }
+        
+        function getWeekNumber(date) {
+            const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+            const dayNum = d.getUTCDay() || 7;
+            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        }
+        
+        // Render dates for each demo
+        function renderDates(containerId, trackId, optionNum) {
+            const container = document.getElementById(containerId);
+            const dates = generateDates();
+            const weeks = groupByWeek(dates);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            let html = '';
+            let weekIndex = 0;
+            
+            Object.keys(weeks).forEach(weekKey => {
+                const week = weeks[weekKey];
+                
+                if (weekIndex > 0) {
+                    html += '<div class="week-separator"></div>';
+                }
+                
+                html += '<div class="week-group">';
+                html += `<span class="week-label">${week.label}</span>`;
+                
+                week.dates.forEach(date => {
+                    const isToday = date.getTime() === today.getTime();
+                    const dayName = dayNames[date.getDay()];
+                    const dayNum = date.getDate();
+                    const monthName = monthNames[date.getMonth()];
+                    const dateStr = date.toISOString().split('T')[0];
+                    
+                    // Random indicators for demo
+                    const hasNumbers = Math.random() > 0.5;
+                    const hasReceipts = Math.random() > 0.7;
+                    
+                    html += `<div class="date-btn ${isToday ? 'active' : ''}" data-date="${dateStr}" data-track="${trackId}" data-option="${optionNum}">`;
+                    html += `<span class="day-name">${dayName}</span>`;
+                    html += `<span class="day-number">${dayNum}</span>`;
+                    html += `<span class="month-name">${monthName}</span>`;
+                    
+                    if (hasNumbers || hasReceipts) {
+                        html += '<div class="indicator-container">';
+                        if (hasReceipts) {
+                            html += '<div class="indicator-line thick"></div>';
+                        } else {
+                            html += '<div class="indicator-line thin"></div>';
+                        }
+                        html += '</div>';
+                    }
+                    
+                    html += '</div>';
+                });
+                
+                html += '</div>';
+                weekIndex++;
+            });
+            
+            container.innerHTML = html;
+            
+            // Add click handlers
+            container.querySelectorAll('.date-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    handleDateClick(this);
+                });
+            });
+        }
+        
+        // Handle date click
+        function handleDateClick(element) {
+            const trackId = element.dataset.track;
+            const optionNum = element.dataset.option;
+            const container = element.closest('.date-track-inner');
+            
+            // Remove active from all in this track
+            container.querySelectorAll('.date-btn').forEach(btn => btn.classList.remove('active'));
+            
+            // Add active to clicked
+            element.classList.add('active');
+            
+            // Scroll based on option
+            const track = document.getElementById(trackId);
+            
+            switch(optionNum) {
+                case '1': // Smooth center
+                    scrollToCenter(track, element, true);
+                    break;
+                case '2': // Scroll snap (happens automatically)
+                    element.scrollIntoView({behavior: 'smooth', block: 'nearest', inline: 'center'});
+                    break;
+                case '3': // ScrollIntoView
+                    element.scrollIntoView({behavior: 'smooth', block: 'nearest', inline: 'center'});
+                    break;
+                case '4': // Natural (do nothing on click)
+                    // Just ensure it's visible
+                    if (!isElementVisible(track, element)) {
+                        element.scrollIntoView({behavior: 'smooth', block: 'nearest', inline: 'nearest'});
+                    }
+                    break;
+            }
+        }
+        
+        // Option 1: Smooth center scroll
+        function scrollToCenter(track, element, smooth = true) {
+            const trackRect = track.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+            
+            const elementCenter = elementRect.left + (elementRect.width / 2);
+            const trackCenter = trackRect.left + (trackRect.width / 2);
+            const scrollOffset = elementCenter - trackCenter;
+            
+            if (smooth) {
+                track.scrollBy({
+                    left: scrollOffset,
+                    behavior: 'smooth'
+                });
+            } else {
+                track.scrollLeft += scrollOffset;
+            }
+        }
+        
+        // Check if element is visible
+        function isElementVisible(container, element) {
+            const containerRect = container.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+            
+            return (
+                elementRect.left >= containerRect.left &&
+                elementRect.right <= containerRect.right
+            );
+        }
+        
+        // Scroll controls
+        function scrollDemo1(direction) {
+            const track = document.getElementById('track1');
+            const amount = direction === 'left' ? -300 : 300;
+            track.scrollBy({left: amount, behavior: 'smooth'});
+        }
+        
+        function scrollDemo2(direction) {
+            const track = document.getElementById('track2');
+            const amount = direction === 'left' ? -300 : 300;
+            track.scrollBy({left: amount, behavior: 'smooth'});
+        }
+        
+        function scrollDemo3(direction) {
+            const track = document.getElementById('track3');
+            const amount = direction === 'left' ? -300 : 300;
+            track.scrollBy({left: amount, behavior: 'smooth'});
+        }
+        
+        function scrollDemo4(direction) {
+            const track = document.getElementById('track4');
+            const amount = direction === 'left' ? -300 : 300;
+            track.scrollBy({left: amount, behavior: 'smooth'});
+        }
+        
+        // Initialize all demos
+        renderDates('inner1', 'track1', '1');
+        renderDates('inner2', 'track2', '2');
+        renderDates('inner3', 'track3', '3');
+        renderDates('inner4', 'track4', '4');
+        
+        // Center today's date on load for each demo
+        setTimeout(() => {
+            const activeButtons = document.querySelectorAll('.date-btn.active');
+            activeButtons.forEach(btn => {
+                const trackId = btn.dataset.track;
+                const optionNum = btn.dataset.option;
+                const track = document.getElementById(trackId);
+                
+                if (optionNum === '1') {
+                    scrollToCenter(track, btn, false);
+                } else if (optionNum === '2' || optionNum === '3') {
+                    btn.scrollIntoView({behavior: 'auto', block: 'nearest', inline: 'center'});
+                }
+                // Option 4 stays natural
+            });
+        }, 100);
+    </script>
+</body>
+</html>

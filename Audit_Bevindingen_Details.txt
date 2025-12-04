@@ -1,0 +1,417 @@
+FEEDBACK QODO
+
+To identify concrete risks, I need to inspect the files that compute day totals and profit/loss. I will open weekoverzicht.php and dashboard.php (often where daily/weekly totals are calculated) and the related API endpoints (e.g., api/get_dashboard_data.php and api/get_bonnen_overzicht.php) to review how sums are computed and aggregated.
+
+I will also review the functions used to calculate week and day stats and totals to identify where sums and balances are computed at the data layer. This includes functions like getWeekStats, getWeekTotals, getDayStats, and calculateCommission.
+
+Gevaarlijke punten
+
+Floating point/precisie
+
+Binaire floats in PHP: In weekoverzicht.php worden bedragen geconverteerd met floatval en berekend met 0.30/0.70. Dit kan afrondingsfouten cumuleren (bijv. 0.1 + 0.2 ≠ 0.3). Dit beïnvloedt: commission, house_pot, net_house, per-speler huis_saldo en optellingen voor “huis moet betalen/ontvangt”. Weergave met number_format maskeert het probleem maar voorkomt het niet in logica en vergelijkingen (>= 0).
+
+Inconsistent commissielogica: Op de pagina is commissie 30% van inzet (bet), terwijl calculateCommission() 30% van het huisSaldo gebruikt (winst/verlies na uitbetalingen). In de multi-winkel CSV wordt de calculateCommission() variant gebruikt. Dit veroorzaakt inconsistenties tussen UI en export en kan tot verkeerde beslissingen leiden.
+
+JS berekeningen met floats: In de bon-detail modal (client-side) worden totals via parseFloat/toFixed berekend. Ook daar gelden drijvende-komma afrondingsrisico’s, vooral bij sommatie over meerdere rijen.
+
+Aggregatie/dubbel tellen
+
+Inconsistent “bonnen”-teller vs. sommen: getWeekTotals telt total_bons via subselect op bons (ook zonder rijen), maar bet/winnings/rijen komen uit een JOIN op rijen. Dit levert inconsistenties op: bonnen kunnen geteld worden zonder dat ze bijdragen aan bedragen, waardoor ratio’s en gemiddelden scheef zijn.
+
+LEFT JOIN in multi-winkel export met HAVING COUNT(DISTINCT b.id) > 0: Spelers met bonnen maar zonder rijen komen toch in de set; total_bet/winnings kunnen 0 zijn. Dit wiens “bonnen” meenemen zonder bijbehorende bedragen kan rapportages vertekenen.
+
+Meerdere winkels tegelijk (Alles): getWeekStats en getWeekTotals groeperen niet per winkel. Als dezelfde speler (zelfde id) in meerdere winkels bonnen heeft, worden die samengeteld onder één speler. Dit kan voor winkel-vergelijkingen of interne afrekeningen misleidend zijn als men “Alles” vergelijkt met per-winkel exports.
+
+Duplicatie via rij-join: Overal waar met rijen gejoined wordt, is COUNT(r.id) bewust, maar elke som (SUM(r.bet)/SUM(r.winnings)) groeit mee met het aantal rijen. Indien elders afzonderlijk ook bon-tellingen of per-bon-sommen opnieuw worden opgeteld, kan dubbel optellen ontstaan als men totals uit verschillende lagen combineert (bijv. som van per-speler totals vs. een globale SUM).
+
+Week vs. dag tegels: De dag-tegels baseren zich op bon-datum. Indien een bon naar een andere winkel wordt verplaatst of “trekking” logica rijen aanpast, kan de optelling per dag/ winkel uit de pas lopen met eerder geëxporteerde of gecombineerde weekcijfers.
+
+Null/Undefined/lege cases
+
+Null week_stats/week_totals: Er zijn valbeveiligingen, maar er zijn plekken die gaan uit van bestaande keys/structuur. Bijvoorbeeld in CSV export single-winkel wordt $total_huis_saldo gebruikt zonder dat deze variabele eerder is gedefinieerd; dit veroorzaakt notices en mogelijk onjuiste output.
+
+Speler met geen inzet maar wel uitbetaling “van gisteren”: Het model schrijft uitbetalingen (winnings) aan de bon/rij met bon-datum. Hierdoor telt “vandaag” niets als er vandaag geen bon is, zelfs als de uitbetaling feitelijk vandaag plaatsvindt. Businessmatig kan dat betekenen dat “dagresultaat” uitbetalingen mist of verkeerde dagen aanhoudt, wat tot verkeerde kas-afsluiting per dag kan leiden.
+
+WinkelId truthy-checks: In queries wordt soms ($winkelId ? … : …) gebruikt, elders ($winkelId !== null). Als winkel_id ooit 0 kan zijn, leidt de truthy-check tot het onterecht niet toepassen van de winkel-filter (aggregatie over alle winkels), waardoor cijfers dubbel/te groot worden. De inconsistente checks verhogen het risico op filter-omissies.
+
+Typeconversies uit DB: SUM/COALESCE leveren strings terug; overal wordt floatval/parseFloat toegepast. Bij lege of onverwacht geformatteerde waarden (bijv. locale met komma’s) kan dit tot 0.0 degraderen zonder fout, waardoor stille afwijkingen ontstaan.
+
+Sorting/comparisons op floats: usort en CSS-klassen baseren zich op exact vergelijkingen (>= 0). Door floating precision net boven/onder nul kan een waarde “positief” lijken terwijl deze praktisch 0 is, wat richtingpijlen en labels foutief maakt.
+
+Operationele/integriteitsrisico’s
+
+Afwijkende commissies in UI vs. export: Medewerkers kunnen verschillende cijfers zien voor dezelfde periode afhankelijk van scherm/export. Dit is een compliance/afrekenrisico.
+
+Gemengde aggregatierichtingen: Per-winkel export (secties) vs. “Alles” kunnen verschillen tonen door bovengenoemde aggregatie- en filterverschillen, wat reconciliatie bemoeilijkt.
+
+Geen centrale afrondingsstrategie: Afronding gebeurt pas bij presentatie. Tussenberekeningen (commission, pot, netto, huis_saldo) worden ongerond doorgegeven, waardoor kleine fouten kunnen opstapelen over veel rijen/bonnen/weken.
+
+Ernstig
+
+Float gebruik voor geldbedragen in kernlogica: In weekoverzicht.php en functions.php worden bedragen geconverteerd met floatval en berekend met decimale factoren (bijv. $commission = $total_bet * 0.30; $house_pot = $total_bet * 0.70; $net_house = $house_pot - $total_winnings). Dit introduceert cumulatieve binaire afrondingsfouten in financiële resultaten en comparators (>= 0), vooral bij optellen over veel rijen/bonnen/weken.
+
+Inconsistentie commissiegrondslag (inzet vs. winst): De UI/weekly cards berekenen commissie als 30% van de inzet (bet). De helper calculateCommission() berekent commissie als 30% van het huisSaldo (bruto resultaat = bet - winnings). In de multi-winkel CSV wordt calculateCommission() gebruikt (dus over resultaat), terwijl elders de UI het over inzet doet. Dit levert tegenstrijdige cijfers op tussen schermen/exports, met potentieel verkeerde afrekeningen.
+
+Variabele gebruik zonder definitie in CSV export (single winkel): In weekoverzicht.php wordt total_huis_saldo weggeschreven in CSV zonder dat die variabele is gedefinieerd of berekend. Dit kan tot foutieve CSV-uitvoer of verkeerde waardes leiden in officiële exports/rapportages.
+
+Rekeningen op client-side met floats: In de detailmodal (JS) worden totals met parseFloat en toFixed berekend en getoond, zonder exact cijfertype. Afwijkingen tussen server en clientpresentatie kunnen tot inconsistent rapporteren leiden.
+
+Gemiddeld
+
+Tussentijdse afronding versus eindafronding: Er wordt hoofdzakelijk pas bij presentatie afgerond (number_format, toFixed). Dat is op zich juist, maar omdat de onderliggende berekeningen floats gebruiken, stapelen kleine fouten zich op over meerdere bewerkingen (bet splits, netto, per-speler aggregaties) en beïnvloeden zij logische beslissingen (zoals “↑ Huis wint” vs “↓ Huis verliest”).
+
+Inconsistent filteren op winkelId: In queries wordt soms het filter toegevoegd met ($winkelId ? ...) en elders met ($winkelId !== null). Als 0 of falsy waarden ooit mogelijk zijn, leidt dit tot onverwacht niet-toegepaste filters en aggregaties over “Alles”, wat rapportcijfers kan opblazen.
+
+Inconsistentie bonnen-teller vs. bedragen: total_bons in getWeekTotals telt bonnen (ook zonder rijen) via een subselect, terwijl bedragen via een JOIN op rijen komen. Dit kan ratio’s en KPI’s vertekenen (gemiddelde inzet per bon, etc.) en bij audits tot onverklaarbare verschillen leiden.
+
+Multi-winkel aggregatie per speler: Bij “Alles” worden spelerresultaten winkeloverschrijdend samengevoegd. Voor interne afrekening per winkel kan dit misleidend zijn, zeker als die cijfers vergeleken worden met per-winkel exports die andere commissielogica toepassen.
+
+Rekenvergelijkingen rond nul: Door floatprecisie kan een saldo van praktisch nul toch als positief/negatief worden geclassificeerd, waardoor richtinglabels, CSS-styling en tellers (huis_moet_betalen/ontvangt) foutief zijn.
+
+Laag
+
+Typeconversie uit database: COALESCE(SUM(...), 0) levert strings; daarna gebeurt cast met floatval/parseFloat. Onverwachte formatten degraderen stilzwijgend naar 0.0. Lage kans, maar het maskeert datakwaliteitsproblemen zonder waarschuwing.
+
+LEFT JOIN met HAVING COUNT(DISTINCT b.id) > 0: Spelers met bonnen maar zonder rijen kunnen in sets verschijnen met bet/winnings op 0. Dit creëert zichtbare inconsistenties (bonnen aanwezig, bedragen nul) in rapporten, maar vormt vooral een interpretatierisico.
+
+Dag vs. week toerekening van uitbetalingen: Alle bedragen zijn gekoppeld aan bon-datum. Als in de praktijk uitbetaling een andere dag plaatsvindt (operationele realiteit), sluiten dagtotalen niet aan op kasstromen per dag. Dit is een business/operationeel interpretatierisico, niet direct een codefout.
+
+Om aggregatie- en duplicatierisico’s goed te beoordelen, bekijk ik waar in het project SUM() en COUNT() met JOINs worden gebruikt. Ik zoek breed in alle PHP-bestanden om alle relevante query’s te vinden.
+
+Samenvatting Data Integriteit Analyse
+
+Aggregatie (SUM/COUNT met JOIN)
+
+Mismatch bon-teller vs. bedragen (functions.php:getWeekTotals): total_bons wordt geteld via een subselect op bons (ook bonnen zonder rijen), terwijl total_rijen/total_bet/total_winnings via JOIN rijen komen. Gevolg: bon-aantallen en bedragen zijn niet op dezelfde populatie gebaseerd, waardoor ratio’s (gemiddelde per bon, etc.) onbetrouwbaar worden.
+
+Uitsluiting bonnen zonder rijen in andere views (functions.php:getBonnenByDate, getPlayerDayStats, getWeekStats): deze queries vereisen rijen (JOIN op rijen en HAVING COUNT(r.id) > 0 of EXISTS). Hierdoor kunnen dezelfde periode/filters in verschillende schermen verschillende populaties meten (soms met bonnen zonder rijen, soms zonder), wat tot onverklaarbare verschillen leidt.
+
+Per-winkel export met LEFT JOIN (weekoverzicht.php CSV multi-winkel secties): er wordt gewerkt met LEFT JOIN bons en LEFT JOIN rijen, maar met HAVING COUNT(DISTINCT b.id) > 0. Dit voorkomt dubbel tellen van bonnen, maar spelers met bonnen zonder rijen komen wel in set met totalen 0. In combinatie met andere schermen (die bonnen zonder rijen uitsluiten) levert dit inconsistenties in totalen op.
+
+Aggregatie op “Alles” vs. per-winkel (functions.php:getWeekStats / weekoverzicht): bij “Alles” worden spelersresultaten winkeloverschrijdend samengevoegd (één speler-id). Dit is niet fout in SQL, maar kan de interpretatie vertekenen wanneer men deze totalen naast per-winkel exports legt (andere aggregatiegranulariteit).
+
+Null-waardes en COALESCE
+
+Stille nul-waarden door COALESCE: in vrijwel alle SUM-rubrieken wordt COALESCE(SUM(...), 0) gebruikt. Dat voorkomt crashes maar maskeert onderscheid tussen “geen data” en “legitiem nulresultaat”. Nieuwe winkels of dagen zonder omzet presenteren als 0 i.p.v. “geen data”, wat analyses kan misleiden.
+
+Inconsistent filter-applicatie op winkelId door truthy-checks (functions.php:getDayStats, getWeekTotals): er wordt gemengd gebruik gemaakt van ($winkelId ? …) en ($winkelId !== null). Als winkel_id ooit 0/falsy kan zijn, dan kan de filter in subqueries wel toegepast worden en in de hoofdquery niet (of omgekeerd), wat tot inconsistent gefilterde aggregaties leidt (geen crash, wel onbetrouwbare totalen).
+
+Externe variabelen die ontbreken in export (weekoverzicht.php single-winkel CSV): total_huis_saldo wordt in CSV gebruikt maar is niet gedefinieerd. Dit veroorzaakt runtime-notices/lege waarden in exportbestanden en ondermijnt betrouwbaarheid van gerapporteerde totalen.
+
+Spaghetti logica en duplicatie
+
+Weekstatistieken en totals op meerdere plekken, met verschillende definities:
+
+functions.php:getWeekTotals en getWeekStats (centrale functies)
+
+weekoverzicht.php (eigen aggregaties, incl. per-winkel secties)
+
+api/export_week_csv.php en api/export_week_excel.php (herhaalde, afzonderlijke queries met eigen HAVING/ORDER-by logica)
+
+spelers.php en overzichten.php (soortgelijke aggregaties opnieuw opgebouwd)
+
+Deze duplicatie vergroot de kans op divergentie als definities of filters wijzigen (bijv. winkel-filter, datumrange, opname van bonnen zonder rijen).
+
+Commissielogica op verschillende plekken met verschillende grondslag:
+
+UI (weekoverzicht) rekent commissie over 30% van inzet.
+
+calculateCommission() rekent commissie over “huisSaldo” (bet - winnings) en wordt in exports gebruikt.
+
+Omdat deze logica gedupliceerd en inconsistent is, is het risico groot dat UI, CSV en Excel verschillende cijfers rapporteren voor dezelfde periode.
+
+Waar data onbetrouwbaar kan worden
+
+Overzicht “Week” versus Exports: door herhaalde, niet-geharmoniseerde queries (incl. afwijkende commissiebasis) kunnen UI en export verschillende uitkomsten tonen voor dezelfde periode/winkel.
+
+Bon-teller vs. bedragen: total_bons (met bonnen zonder rijen) verhoudt zich niet tot total_bet/total_winnings (alleen bonnen met rijen). KPI’s en audit-vergelijkingen raken onbetrouwbaar.
+
+“Alles” vs. per-winkel: aggregatie per speler over alle winkels in de UI wijkt af van per-winkel secties in export. Vergelijkingen per winkel en totaal kunnen daardoor ogenschijnlijk “niet kloppen”.
+
+Winkelfilter-inconsistentie: gemengd gebruik van truthy-checks en !== null kan ertoe leiden dat filters niet overal identiek worden toegepast, wat de reproduceerbaarheid van totalen ondermijnt.
+
+CSV single-winkel export veldgebruik: niet-gedefinieerde variabele in export (total_huis_saldo) geeft onvolledige of incorrecte bestanden, waardoor externe rapportage/audit onbetrouwbaar wordt.
+
+Ik ga gericht zoeken naar inline CSS (style="..."), herhaalde JS-functies (zoals sorteerlogica en modals), en gedeelten die mogelijk gekopieerd zijn tussen pagina's. Dit helpt om concrete technische schuldpunten te identificeren.
+
+Technical Debt – Frontend Onderhoudbaarheid
+
+Hardcoded stijlen
+
+Wijdverspreide inline styles met themakleurinjectie:
+
+dashboard.php, spelers.php, weekoverzicht.php, components/*: style="background: …", style="color: ", border: 1px solid 40. Dit gebeurt tientallen keren. Theme-wijzigingen vereisen file-brede zoek/vervang en vergroten risico op inconsistenties.
+
+Inline layout en spacing in componenten en modals:
+
+weekoverzicht.php en spelers.php Bon Details modals gebruiken inline padding, borders, box-shadows en typography (style="padding: 20px 24px; border-bottom: 1px solid #f0f0f0; …"). Dit hoort in CSS classes.
+
+Inline kleurcodering voor status/labels:
+
+Veel badges/labels gebruiken direct hex-waarden (#2ECC71, #EF4444, #F59E0B) binnen style-attributen voor win/verlies, waarschuwingen, en chips. Mix met Tailwind utility classes zorgt voor inconsistente theming.
+
+Herhaald inline grid/box-styles:
+
+“Winnende Nummers” grids in weekoverzicht.php en spelers.php definiëren grid-template-columns, borders en gradients inline. Niet herbruikbaar, moeilijk aanpasbaar.
+
+Kopieergedrag (duplicate HTML/JS)
+
+Bon details modal UI gedupliceerd:
+
+weekoverzicht.php en spelers.php bevatten vrijwel identieke modals voor bon-detail (structuur, inline styles, “Winnende Nummers” grid, rijenrendering met match-highlights).
+
+Compacte bonnenlijst headers en rijen:
+
+De “Datum/Bonnummer/Rijen/Inzet/Uitbetaald/Huisresultaat”-kop en itemlay-out komen in meerdere pagina’s terug (weekoverzicht.php, spelers.php) met handmatig gekopieerde markup en inline styles.
+
+Thema-gebonden chips/pills:
+
+Badges/pills met accentkleur (winkel/thema) zijn meerdere keren op vergelijkbare wijze opgebouwd in dashboard.php, spelers.php, components/winkel_bar.php met vergelijkbare inline style-fragmenten.
+
+Sorteer- en tabelinteractie:
+
+Client-side sorteerlogica voor tabellen (bijv. sortWeekPlayers in weekoverzicht.php) is ad hoc in die view geplaatst. Vergelijkbare tabellen elders lijken dezelfde behoefte te hebben maar delen geen gemeenschappelijke module.
+
+Nummerweergave en formatteerfuncties:
+
+formatNumber, parseFloat/toFixed en valutaweergavepatronen komen verspreid voor in meerdere bestanden met kleine variaties; geen centraal util.
+
+Validatie en gebruikersfeedback
+
+Generieke foutmeldingen zonder veldcontext:
+
+selectWinkel() gebruikt alert('Fout bij selecteren winkel') zonder reden/veld-specifieke feedback of retry-hulp. Meerdere fetch-fouten geven “Netwerkfout” of “Fout bij laden data” zonder detail of herstelactie.
+
+Ontbreken van inline validatiestatus bij invoer:
+
+Bij rijen/nummers toevoegen (dashboard-achtige bon workflows) ontbreken zichtbare invalid states (error styling, hints), edge cases (te weinig/te veel nummers, duplicaten) lijken vooral server-side afgevangen; client-side feedback is beperkt en niet veldgericht.
+
+Onvoldoende disabled/loading states:
+
+Buttons die acties starten (export, modals, bewerkingen) missen consistent disabled/spinner states. Daardoor kan de gebruiker dubbelklikken of onduidelijkheid ervaren tijdens wachttijden.
+
+Toegankelijkheid/ARIA ontbreekt:
+
+Modals hebben geen aria-* attributen, focus-trap of rol-attributen. Foutmeldingen worden niet als live regions aangekondigd. Kleuren communiceren status zonder alternatieve indicator (icon/tekst), wat onderhoud en toegankelijkheid schaadt.
+
+Overkoepelende onderhoudbaarheidsproblemen
+
+Vermenging van Tailwind classes met inline styles:
+
+Tailwind is aanwezig maar veel kernstijlen (kleur, spacing, shadows, borders) staan inline. Dit omzeilt de voordelen van utility-first en maakt consistentie lastig.
+
+Theme- en kleurbeheer niet gecentraliseerd:
+
+Accentkleuren per winkel worden door PHP in inline styles geprint i.p.v. via CSS variabelen of themaklassen. Dit leidt tot cascade van hardcoded style-attributen en vergroot XSS/escape-risico’s als waarden ooit niet strikt gevalideerd worden.
+
+Geen componentisatie van UI-patronen:
+
+Modals, tabelkoppen, pill/badge-componenten, nummer-chips en kaartjes zijn niet als herbruikbare componenten uitgefactoriseerd (geen templates/partials met parametrisatie op stijl). Dit resulteert in copy-paste en meervoudig onderhoud.
+
+Herhaalde logica voor dataviews:
+
+Presentatielogica (renderen van winnende nummers, rijmatch-highlighting, valutaformatting) staat duplicated in meerdere pagina’s, zonder gedeelde JS/CSS util.
+
+Styling verspreid over pagina’s:
+
+Naast assets/css/design-system.css staat veel kritieke styling inline per pagina, wat auditing en refactoring vertraagt en regressies risicovol maakt.
+
+Inconsistente UI feedbackpatronen:
+
+Mix van alerts, inline teksten en stille fails. Geen uniforme notificatiemethode (toast, inline error, modal) en geen centraal error handling patroon in JS.
+
+Kortste route naar beheersbaarheid (zonder implementatie)
+
+Centraliseer styles (CSS vars/utility classes), componentiseer modals/badges/tabelkoppen, bundel JS utils (formatting/sorteren/modal handling), en introduceer consistente client-side validatie en feedbackpatronen.
+
+Ik ga controleren waar logBonAction en audit logging worden aangeroepen en welke muterende acties bestaan, om te bepalen welke acties niet worden gelogd en waar fouten still ingeslikt worden. Ik doorzoek het project naar gebruik van logBonAction en naar mutatie-endpoints.
+
+Audit Trail & Logging Analyse
+
+De ‘Wie en Wanneer’
+
+Positief: Er is een centrale audit helper aanwezig (add_audit_log) die bij inschakeling user_id, username, session_id, ip_address, user_agent en details wegschrijft naar audit_log. Diverse endpoints roepen dit aan bij acties: login/logout, bon_create, bon_move, bon_row_create/update/delete, bon_checked/unchecked, player_create/update/delete, user_create/update/delete, user_password_change.
+
+Blinde vlekken:
+
+Commissies/financiële parameters: Wijzigingen in commissielogica of percentages worden niet als configuratieactie gelogd (er is geen aparte configuratietabel/endpoint zichtbaar en dus geen audit event). Als commissies impliciet uit code komen, zijn wijzigingen onzichtbaar in audit.
+
+Verplaatsingen van bon-inhoud (rijen) bij recalculatie: recalculateAllRijenForDate en recalculateRijWinnings worden op meerdere plaatsen automatisch aangeroepen (na het opslaan van winnende nummers, of bij laden van data). Deze mutaties van winnings/multiplier worden niet systematisch gelogd met “wie” (ze gebeuren vaak server-side/batch, buiten een expliciete user-actie).
+
+Massamutaties: update_player_winkel (herassign van winkel voor alle bonnen van een speler) logt alleen de speler-update, niet de impliciete bulk update van alle gerelateerde bon-records; individuele bons die mee-verhuizen zijn niet traceerbaar per bon.
+
+Before & After
+
+Positief: Sommige audit entries bevatten ‘old’ en ‘new’-achtige details (bijvoorbeeld in beheer.php: player_update en user_update voegen ‘old’ toe in details; update_bon_winkel logt old_winkel_id en new_winkel_id).
+
+Blinde vlekken:
+
+Bon- en rijwaarden (bedragen en nummers): Bij add_rij en update_rij_numbers worden wel events gelogd, maar details zijn beperkt (rij_id, counts, matches, multiplier). Er wordt niet consequent gelogd: bet/winnings oude waarde -> nieuwe waarde, of nummers old -> new. Dit maakt fraude-analyse (bijvoorbeeld verhoging van inzet achteraf) beperkt.
+
+Recalculaties (door winnende nummers): Wanneer winnings automatisch veranderen na het instellen van uitslagen, wordt geen before/after vastgelegd per rij/bon. Alleen het feit van het opslaan van winnende nummers is zichtbaar via audit (indien gelogd), niet de financiële impact per entiteit.
+
+Bon verplaatsingen: move_bon logt from_date/to_date (goed), maar niet eventuele bijeffecten (bijvoorbeeld wijzigingen in gekoppelde winkel of berekende saldo’s) als die optreden.
+
+Silent Failures
+
+Positief: Sommige API’s geven JSON-fouten terug aan de client.
+
+Blinde vlekken:
+
+Gelogde DB-fouten onderdrukt: logBonAction gebruikt @pg_query_params (error suppression). Eventuele failures in het wegschrijven van bon_logs blijven stil en worden niet gerapporteerd naar audit of een errorlog.
+
+fetch/try-catch op frontend: In weekoverzicht.php en andere views worden fetch-fouten vaak afgevangen met console.error of een generieke melding. Er is geen centrale client-side error reporting (bijv. naar server) waardoor operationele fouten niet traceerbaar zijn.
+
+add_audit_log gebruikt ook @pg_query_params zonder fallback logging. Als de audit_log tabel ontbreekt of de insert faalt, verdwijnt de audit poging geruisloos.
+
+Sensitive Data (AVG)
+
+Positief: In audit_log worden standaard user_id, username, session_id, ip, user_agent en details weggeschreven. Er is geen evident loggen van wachtwoorden zichtbaar.
+
+Risico’s:
+
+user_password_change: In beheer.php wordt dit gelogd met username. Het nieuwe wachtwoord lijkt niet gelogd te worden (goed), maar check dat details geen hash of gevoelige velden bevatten elders. Onbekend wat ‘old’ bij user_update precies bevat (kan potentieel e-mail of andere persoonsgegevens bevatten).
+
+IP en user agent logging: Dit is normaal, maar in combinatie met andere persoonsvelden kunnen extra AVG-verplichtingen gelden (retentie/anonimisering). Er is geen zichtbare retentie- of PII-redactie.
+
+Ongevalideerde ‘details’: Diverse add_audit_log-calls sturen arrays door met willekeurige sleutels/waarden. Zonder whitelisting/strippen kan per ongeluk PII of andere gevoelige data gelogd worden.
+
+Acties die nu niet (voldoende) traceerbaar zijn
+
+Wijzigingen aan commissielogica of financiële parameters: Geen afzonderlijke configuratie-events, geen audit van “commission basis changed” of “percentage changed”, noch before/after waarden. Als het in code wijzigt, is het onzichtbaar.
+
+Automatische recalculaties van rijen/winnings: Geen per-rij/bon before/after logging wanneer uitslagen worden opgeslagen of herberekend, ondanks financiële impact.
+
+Bulk-updates bij speler/winkel wijzigingen: update_player_winkel doet een massaupdate van bons, maar er is geen bon-per-bon audit event (alleen een speler_update event). Hierdoor zijn individuele records niet herleidbaar.
+
+Wijziging van bon-velden (naam, bonnummer) buiten specifieke endpoints: Alleen create/delete/check events zijn zichtbaar; voor algemene bon updates is er geen eenduidig “bon_update” met field-level diff (behalve in update_bon_winkel). Ook set_bon_checked logt alleen status, niet het totale bon-saldo/rijenwijzigingen.
+
+Exportacties: Export van week CSV/Excel worden niet gelogd (wie, wanneer, welke parameters), wat relevant is voor data-exfiltratie monitoring.
+
+Foutcondities en mislukte mutaties: Insert/update/delete fouten in logging zelf (audit/bon_logs) of in mutatie-acties worden onderdrukt of alleen client-side getoond; er is geen centrale errorlog of alerting naar admin.
+
+Compliancerisico door inconsistent gebruik van audit vs. bon_logs: Er bestaan twee logsystemen (audit_log en bon_logs). Niet iedere actie wordt in beide geregistreerd; sommige endpoints gebruiken alleen audit_log, andere alleen bon_logs, of combineren. Dit maakt het totaaloverzicht incompleet en versnipperd.
+
+Conclusie
+
+Wie/wanneer: Redelijk aanwezig voor een subset van acties via audit_log, maar niet uniform (recalc/bulk/export ontbreken).
+
+Before/after: Gedeeltelijk voor bepaalde entiteiten (users/players), maar vrijwel afwezig voor financiële kerndata (bet/winnings/rows).
+
+Silent failures: Aanwezig door error suppression en gebrek aan server-side error reporting/alerting.
+
+Sensitive data: Geen wachtwoorden zichtbaar, maar ongestructureerde ‘details’ en PII (IP, UA) zonder retentiebeleid vormen AVG-risico.
+
+Deze hiaten betekenen dat cruciale financiële mutaties en bulkprocessen niet forensisch herleidbaar zijn en dat een deel van de logging zelf onbetrouwbaar kan uitvallen zonder detectie.
+
+
+
+1. De Architectuur
+
+Framework: Custom PHP/JS. Er is geen Laravel/Symfony/Vue/React aanwezig. Geen composer-structuur of PSR-autoloading. Een embedded library simple_html_dom staat in php/.
+
+MVC: Niet aanwezig. SQL, businesslogica en presentatie (HTML) zijn sterk verweven in dezelfde PHP-bestanden (bijv. weekoverzicht.php, spelers.php, overzichten.php). “Controllers” ontbreken; API-endpoints in api/ bevatten directe SQL en output JSON, terwijl views ook zelf queries uitvoeren.
+
+Structuur: Een centrale functions.php met veel database- en domeinlogica (query helpers, statistiekfuncties, winkel/kleur helpers, winningsberekening). Views (weekoverzicht.php, dashboard.php, spelers.php) renderen HTML en doen eigen queries. API’s dupliceren vergelijkbare aggregaties.
+
+State management: Sessievariabelen (selected_winkel) worden direct gebruikt binnen views/queries. Geen duidelijke service- of repository-lagen.
+
+2. De Hotspots (zwaarste logica)
+
+Financiële aggregaties en statistieken:
+
+functions.php: getDayStats, getWeekStats, getWeekTotals, calculateCommission/calculateCommissionSplit, calculateWinnings, recalculateAllRijenForDate. Dit vormt de kern van inzet/uitbetaling/saldo-logica.
+
+weekoverzicht.php: berekent commissies (30%/70%), netto huis, en per-speler/ per-dag huisresultaat. Bevat eigen CSV-exportpad met eigen aggregatielogica.
+
+api/export_week_csv.php en api/export_week_excel.php: dupliceren weekstatistieken/aggregaties en verwerken multi-winkel exports.
+
+spelers.php en overzichten.php: uitvoeren van omvangrijke JOIN/SUM/COUNT aggregaties voor rapportages.
+
+Data-mutaties:
+
+api/ add_rij.php, update_rij_numbers.php, create_bon.php, move_bon.php, delete_*.php: muterende endpoints met directe SQL.
+
+Scraping/winnende nummers:
+
+functions.php (scrapeLuckyDayNumbers, getOrScrapeWinningNumbers), scraper.js.
+
+3. De Staat van de Code
+
+Stijl/standaarden: Overwegend procedureel PHP, weinig tot geen classes (afgezien van third-party HTML parser). Geen namespaces, geen strict_types, geen typehints in signatures, geen PSR-standaard. Veel include/require van losse PHP’s. HTML en PHP logica door elkaar in views.
+
+Data access: Ruwe SQL direct in views en API’s. Geen ORM of query builder. COALESCE/SUM/COUNT-aggregaties verspreid en vaak gedupliceerd.
+
+Hergebruik: Deels gecentraliseerd in functions.php, maar veel duplicatie in views en exports (zelfde conceptuele queries, net anders).
+
+Frontend: Plain JS in views. Geen build chain of frontend framework.
+
+Config/session: config.php, session_config.php, globale sessie- en post/get-afhandeling in views en API’s.
+
+4. Het Grootste Risico (onderhoud/schaalbaarheid)
+
+Inconsistenties en duplicatie van financiële logica: Commissieberekening, aggregatie (SUM/COUNT), filters (winkel/datum) en “inzet vs. resultaat”-definities zijn verspreid en licht afwijkend per bestand. Dit maakt audits, bugfixes en uitbreidingen risicovol; een wijziging vereist meerdere aanpassingen op verschillende plekken met kans op divergentie.
+
+Tight coupling van lagen: SQL, businesslogica en presentatie zijn niet gescheiden. Dit bemoeilijkt testen, refactoring, performance-optimalisatie en het introduceren van autorisatie/validatie/logging op één plek.
+
+Gebrek aan formele types/validatie: Geen strict typing, beperkte inputvalidatie/sanering in SQL-laag, en veel float-gebaseerde geldberekeningen. Dit vergroot de kans op subtiele fouten die pas in rapportages zichtbaar worden.
+
+Schaalbaarheid: Zwaardere aggregaties (JOINs/SUMs) zitten in views en exports zonder caching/indices-strategie zichtbaar in code. Bij grotere datasets of multi-tenant-uitbreiding kan dit traag/fragiel worden.
+
+Testbaarheid/auditability: Geen test-suite, geen centrale domeinlaag; financiële kernberekeningen zijn lastig automatisch te verifiëren. Externe audits worden moeilijk door inconsistenties en verspreide implementaties.
+
+5. Bestandstructuur overzicht (hoog-over)
+
+api/
+
+Diverse endpoints voor CRUD en rapportage: add_rij.php, create_bon.php, get_bon.php, get_bonnen_overzicht.php, get_dashboard_data.php, export_week_csv.php, export_week_excel.php, enz. Bevatten directe SQL/aggregaties en JSON-output.
+
+assets/
+
+css/design-system.css (stijl).
+
+attached_assets/
+
+Afbeeldingen/uploads.
+
+components/
+
+Herbruikbare view-snippets: main_nav.php, winkel_selector.php, winkel_bar.php, old_data_warning.php.
+
+docs/
+
+Functionele notities, changelogs, implementatieplannen.
+
+migrations/
+
+SQL-migratieschriften (winkels, bon_logs, audit_log, etc.).
+
+php/
+
+Third-party/simple libs en HTML parser classes: simple_html_dom.php, HtmlDocument.php, HtmlElement.php, HtmlNode.php, HtmlWeb.php.
+
+Root views/pages:
+
+weekoverzicht.php (weekstatistieken, financiële kaarten, CSV trigger).
+
+dashboard.php (dagoverzicht, winnende nummers UI).
+
+spelers.php, overzichten.php, bonnen.php, beheer.php (beheer/rapportage UI’s).
+
+index.php (login/home), logout.php.
+
+Diverse debug/test pagina’s.
+
+Kernconfig en helpers:
+
+config.php (DB-conn e.d.), session_config.php.
+
+functions.php (grote verzameling domeinfuncties: statistiek, winnings, winkelthema’s, scraping).
+
+run_migrations.php, run_migration.php (migratie runners).
+
+scraper.js (Node-script voor scraping).
+
+Overige:
+
+CHANGES/*.MD, UI_*.* (ontwerp-/implementatieoverzichten), shell-script daily_scrape.sh, test_*.php hulpscripts.

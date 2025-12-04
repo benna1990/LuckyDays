@@ -1,38 +1,24 @@
-# PHP
-vendor/
-composer.lock
-*.log
-
-# Node.js
-node_modules/
-package-lock.json
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment
+# Environment variables
 .env
-.env.local
-.env.*.local
+
+# Node modules
+node_modules/
+
+# Vendor
+vendor/
+
+# MacOS
+.DS_Store
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Temporary files
-tmp/
-temp/
-*.tmp
 
 # Logs
-/tmp/logs/
+*.log
 
-# Legacy XAMPP documentation (can be removed in production)
-htdocs_old/
+# Cache
+cache/
+tmp/

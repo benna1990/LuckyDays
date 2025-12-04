@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid Dagselector - Optie 2 Dagen + Optie 5 Compact</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #F3F4F6;
+            padding: 40px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .day-btn {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            text-decoration: none;
+            user-select: none;
+            position: relative;
+        }
+        
+        .day-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .day-btn.active {
+            font-weight: 700;
+        }
+        
+        /* Scroll Container */
+        .scroll-days {
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(46, 204, 113, 0.3) #F3F4F6;
+        }
+        
+        .scroll-days::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .scroll-days::-webkit-scrollbar-track {
+            background: #F3F4F6;
+            border-radius: 3px;
+        }
+        
+        .scroll-days::-webkit-scrollbar-thumb {
+            background: rgba(46, 204, 113, 0.3);
+            border-radius: 3px;
+        }
+        
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            color: #6B7280;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-icon:hover {
+            background: #F9FAFB;
+            border-color: #2ECC71;
+            color: #2ECC71;
+        }
+        
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            background: white;
+            color: #374151;
+            border: 2px solid #E5E7EB;
+            white-space: nowrap;
+        }
+        
+        .btn-secondary:hover {
+            border-color: #2ECC71;
+            color: #2ECC71;
+        }
+        
+        input[type="date"] {
+            padding: 8px 10px;
+            border: 2px solid #E5E7EB;
+            border-radius: 10px;
+            font-size: 13px;
+            color: #374151;
+            background: white;
+            cursor: pointer;
+        }
+        
+        input[type="date"]:hover {
+            border-color: #2ECC71;
+        }
+        
+        /* Indicator styles - ONLY LINES */
+        .indicator-container {
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .indicator-line {
+            width: 18px;
+            background: #2ECC71;
+            border-radius: 1px;
+        }
+        
+        .indicator-line.thin {
+            height: 2px;
+            opacity: 0.5;
+        }
+        
+        .indicator-line.thick {
+            height: 3px;
+            opacity: 1;
+        }
+        
+        /* Active day has white indicators */
+        .day-btn.active .indicator-line {
+            background: white;
+        }
+        
+        /* Week separator */
+        .week-separator {
+            width: 1px;
+            height: 52px;
+            background: linear-gradient(to bottom, transparent, #E5E7EB 20%, #E5E7EB 80%, transparent);
+            margin: 0 8px;
+            flex-shrink: 0;
+        }
+        
+        /* Week label */
+        .week-label {
+            position: absolute;
+            top: -20px;
+            left: 0;
+            font-size: 10px;
+            color: #9CA3AF;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="text-align: center; margin-bottom: 48px;">
+            <h1 style="font-size: 42px; font-weight: 700; margin-bottom: 12px; color: #1F2937;">🎯 Hybrid Dagselector</h1>
+            <p style="font-size: 18px; color: #6B7280; margin-bottom: 8px;">Dagen van Optie 2 + Compacte layout van Optie 5</p>
+            <p style="font-size: 14px; color: #9CA3AF;">Verticale layout met nummers/bonnen indicators</p>
+        </div>
+        
+        <!-- HYBRID VERSION -->
+        <div style="background: white; border-radius: 16px; border: 1px solid #E5E7EB; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+                <!-- Title -->
+                <h2 style="font-size: 20px; font-weight: 700; color: #1F2937; margin: 0; white-space: nowrap;">Dagoverzicht</h2>
+                
+                <!-- Days Section -->
+                <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                    <button class="btn-icon">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    
+                    <div class="scroll-days" style="flex: 1; background: #F9FAFB; border-radius: 12px; padding: 10px; padding-top: 28px; position: relative;">
+                        <div style="display: inline-flex; gap: 6px; align-items: center;">
+                            <!-- Week 47 -->
+                            <div style="position: relative;">
+                                <span class="week-label">Week 47</span>
+                                <div style="display: flex; gap: 6px;">
+                                    <!-- Day with thin line (numbers only) -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">vr</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">21</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                                        <div class="indicator-container">
+                                            <div class="indicator-line thin"></div>
+                                        </div>
+                                    </a>
+                                    
+                                    <!-- Day with thick line (numbers + receipts) -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">za</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">22</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                                        <div class="indicator-container">
+                                            <div class="indicator-line thick"></div>
+                                        </div>
+                                    </a>
+                                    
+                                    <!-- Day without data -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">zo</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">23</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Week separator -->
+                            <div class="week-separator"></div>
+                            
+                            <!-- Week 48 -->
+                            <div style="position: relative;">
+                                <span class="week-label">Week 48</span>
+                                <div style="display: flex; gap: 6px;">
+                                    <!-- Day with thin line -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">ma</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">24</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                                        <div class="indicator-container">
+                                            <div class="indicator-line thin"></div>
+                                        </div>
+                                    </a>
+                                    
+                                    <!-- Day with thin line -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">di</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">25</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                                        <div class="indicator-container">
+                                            <div class="indicator-line thin"></div>
+                                        </div>
+                                    </a>
+                                    
+                                    <!-- Day with thick line -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">wo</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">26</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                                        <div class="indicator-container">
+                                            <div class="indicator-line thick"></div>
+                                        </div>
+                                    </a>
+                                    
+                                    <!-- Day without data -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">do</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">27</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                                    </a>
+                                    
+                                    <!-- Active day with thick line -->
+                                    <a href="#" class="day-btn active" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: #2ECC71; min-width: 58px; color: white; box-shadow: 0 4px 12px rgba(46, 204, 113, 0.35);">
+                                        <span style="font-size: 10px; opacity: 0.9;">vr</span>
+                                        <span style="font-size: 16px; font-weight: 700; margin-top: 1px;">28</span>
+                                        <span style="font-size: 10px; opacity: 0.9; margin-top: 1px;">nov</span>
+                                        <div class="indicator-container">
+                                            <div class="indicator-line thick"></div>
+                                        </div>
+                                    </a>
+                                    
+                                    <!-- Future day without data -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">za</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">29</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                                    </a>
+                                    
+                                    <!-- Day without data -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">zo</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">30</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Week separator -->
+                            <div class="week-separator"></div>
+                            
+                            <!-- Week 49 -->
+                            <div style="position: relative;">
+                                <span class="week-label">Week 49</span>
+                                <div style="display: flex; gap: 6px;">
+                                    <!-- More days -->
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">ma</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">1</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">dec</span>
+                                    </a>
+                                    
+                                    <a href="#" class="day-btn" style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: white; min-width: 58px; border: 1px solid #E5E7EB;">
+                                        <span style="font-size: 10px; color: #9CA3AF;">di</span>
+                                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">2</span>
+                                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">dec</span>
+                                        <div class="indicator-container">
+                                            <div class="indicator-line thin"></div>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-icon">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <a href="#" class="btn-secondary">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                        <span>Nieuwste</span>
+                    </a>
+                    <input type="date" value="2025-11-28">
+                </div>
+            </div>
+            
+            <!-- Inline Legend -->
+            <div style="display: flex; align-items: center; justify-content: center; gap: 28px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #F3F4F6;">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6B7280;">
+                    <div style="width: 20px; height: 2px; background: #2ECC71; opacity: 0.5; border-radius: 1px;"></div>
+                    <span>Dunne lijn = nummers opgehaald</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6B7280;">
+                    <div style="width: 20px; height: 3px; background: #2ECC71; border-radius: 1px;"></div>
+                    <span>Dikke lijn = bonnen toegevoegd</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- EXAMPLES SECTION -->
+        <div style="margin-top: 64px;">
+            <h2 style="font-size: 28px; font-weight: 700; margin-bottom: 24px; color: #1F2937; text-align: center;">📊 Indicator Voorbeelden</h2>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                <!-- Example 1: No data -->
+                <div style="background: white; border: 2px solid #E5E7EB; border-radius: 12px; padding: 24px; text-align: center;">
+                    <div style="display: inline-flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: #F9FAFB; min-width: 58px; position: relative;">
+                        <span style="font-size: 10px; color: #9CA3AF;">zo</span>
+                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">23</span>
+                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 13px; color: #6B7280; font-weight: 500;">Geen data</div>
+                </div>
+                
+                <!-- Example 2: Thin line (numbers only) -->
+                <div style="background: white; border: 2px solid #E5E7EB; border-radius: 12px; padding: 24px; text-align: center;">
+                    <div style="display: inline-flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: #F9FAFB; min-width: 58px; position: relative;">
+                        <span style="font-size: 10px; color: #9CA3AF;">vr</span>
+                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">21</span>
+                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                        <div style="position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);">
+                            <div style="width: 18px; height: 2px; background: #2ECC71; opacity: 0.5; border-radius: 1px;"></div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 13px; color: #6B7280; font-weight: 500;">Dunne lijn</div>
+                    <div style="margin-top: 4px; font-size: 11px; color: #9CA3AF;">Nummers opgehaald</div>
+                </div>
+                
+                <!-- Example 3: Thick line (receipts added) -->
+                <div style="background: white; border: 2px solid #E5E7EB; border-radius: 12px; padding: 24px; text-align: center;">
+                    <div style="display: inline-flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: #F9FAFB; min-width: 58px; position: relative;">
+                        <span style="font-size: 10px; color: #9CA3AF;">za</span>
+                        <span style="font-size: 14px; color: #374151; font-weight: 600; margin-top: 1px;">22</span>
+                        <span style="font-size: 10px; color: #9CA3AF; margin-top: 1px;">nov</span>
+                        <div style="position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);">
+                            <div style="width: 18px; height: 3px; background: #2ECC71; border-radius: 1px;"></div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 13px; color: #6B7280; font-weight: 500;">Dikke lijn</div>
+                    <div style="margin-top: 4px; font-size: 11px; color: #9CA3AF;">Bonnen toegevoegd</div>
+                </div>
+                
+                <!-- Example 4: Active day with thick line -->
+                <div style="background: linear-gradient(135deg, #2ECC71 0%, #27AE60 100%); border: 2px solid #2ECC71; border-radius: 12px; padding: 24px; text-align: center;">
+                    <div style="display: inline-flex; flex-direction: column; align-items: center; padding: 8px 12px 12px 12px; border-radius: 10px; background: rgba(255,255,255,0.2); min-width: 58px; position: relative; color: white;">
+                        <span style="font-size: 10px; opacity: 0.9;">vr</span>
+                        <span style="font-size: 16px; font-weight: 700; margin-top: 1px;">28</span>
+                        <span style="font-size: 10px; opacity: 0.9; margin-top: 1px;">nov</span>
+                        <div style="position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);">
+                            <div style="width: 18px; height: 3px; background: white; border-radius: 1px;"></div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 13px; color: white; font-weight: 500;">Actieve dag</div>
+                    <div style="margin-top: 4px; font-size: 11px; color: white; opacity: 0.9;">Met witte indicator</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Key Features -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; padding: 48px; color: white; margin-top: 64px;">
+            <h2 style="font-size: 32px; font-weight: 700; margin: 0 0 24px 0; text-align: center;">✨ Key Features</h2>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; max-width: 1000px; margin: 0 auto;">
+                <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">📱</div>
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Compact Layout</div>
+                    <div style="font-size: 13px; opacity: 0.9; line-height: 1.5;">Alles op één rij, maximale ruimte-efficiëntie zoals Optie 5</div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🎯</div>
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Verticale Dagen</div>
+                    <div style="font-size: 13px; opacity: 0.9; line-height: 1.5;">Mooie dagknoppen met dag/datum/maand zoals Optie 2</div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">📊</div>
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Alleen Lijnen</div>
+                    <div style="font-size: 13px; opacity: 0.9; line-height: 1.5;">Dunne lijn = nummers, Dikke lijn = bonnen</div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">📅</div>
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Week Separators</div>
+                    <div style="font-size: 13px; opacity: 0.9; line-height: 1.5;">Duidelijke scheidingen met weeknummers bovenaan</div>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🎨</div>
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Winkelkleur</div>
+                    <div style="font-size: 13px; opacity: 0.9; line-height: 1.5;">Actieve dag + indicators gebruiken shop accent color</div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 48px; padding: 32px; background: white; border-radius: 16px; border: 2px solid #2ECC71;">
+            <h3 style="font-size: 24px; font-weight: 700; margin: 0 0 12px 0; color: #1F2937;">Bevalt deze hybrid versie? 🚀</h3>
+            <p style="font-size: 16px; color: #6B7280; margin: 0;">Dan implementeer ik hem meteen in dashboard.php met de scroll fix!</p>
+        </div>
+    </div>
+</body>
+</html>
+
